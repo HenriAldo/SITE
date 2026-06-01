@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/patient_profile.dart';
 import '../../data/models/symptom_response.dart';
 import '../../data/services/ai_service.dart';
+import '../../data/services/firestore_service.dart';
 import 'result_screen.dart';
 
 class SymptomQuestionnaireScreen extends StatefulWidget {
@@ -315,6 +317,12 @@ class _SymptomQuestionnaireScreenState
         profile: profile,
         symptoms: symptoms,
       );
+
+      // Save to Firestore
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null) {
+        await FirestoreService().saveAssessment(userId, assessment);
+      }
 
       if (!mounted) return;
       Navigator.pushReplacement(

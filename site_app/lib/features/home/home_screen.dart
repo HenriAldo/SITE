@@ -3,6 +3,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
 import '../../shared/widgets/risk_badge.dart';
 import '../assessment/guided_capture_screen.dart';
+import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -60,15 +61,21 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.cardBorder),
+        GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileScreen()),
           ),
-          child: const Icon(Icons.person_outline, color: AppColors.textSecondary),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: const Icon(Icons.person_outline, color: AppColors.textSecondary),
+          ),
         ),
       ],
     );

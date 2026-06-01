@@ -1,12 +1,19 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
+import 'data/services/firestore_service.dart';
+import 'features/auth/login_screen.dart';
+import 'features/clinician/clinician_dashboard_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/history/history_screen.dart';
+import 'firebase_options.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -26,10 +33,59 @@ class SiteApp extends StatelessWidget {
       title: 'SITE',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const MainShell(),
+      home: const AuthGate(),
     );
   }
 }
+
+/// Listens to Firebase auth state and routes to the correct experience
+/// based on the user's role (patient or clinician).
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _LoadingScreen();
+        }
+        if (!snapshot.hasData) {
+          return const LoginScreen();
+        }
+        // User is logged in — check their role
+        return FutureBuilder<String?>(
+          future: FirestoreService().getUserRole(snapshot.data!.uid),
+          builder: (context, roleSnap) {
+            if (roleSnap.connectionState == ConnectionState.waiting) {
+              return const _LoadingScreen();
+            }
+            if (roleSnap.data == 'clinician') {
+              return const ClinicianDashboardScreen();
+            }
+            return const MainShell();
+          },
+        );
+      },
+    );
+  }
+}
+
+class _LoadingScreen extends StatelessWidget {
+  const _LoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: CircularProgressIndicator(color: AppColors.teal),
+      ),
+    );
+  }
+}
+
+// ── Patient Shell ─────────────────────────────────────────────
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
