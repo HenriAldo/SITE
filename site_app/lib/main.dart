@@ -79,7 +79,7 @@ class _LoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(
-        child: CircularProgressIndicator(color: AppColors.teal),
+        child: CircularProgressIndicator(color: AppColors.accent),
       ),
     );
   }

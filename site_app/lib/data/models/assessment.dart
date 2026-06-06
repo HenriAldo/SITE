@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 
-enum RiskLevel { low, moderate, high }
+enum RiskLevel { undetected, low, moderate, high }
 
 extension RiskLevelExtension on RiskLevel {
   String get label {
     switch (this) {
+      case RiskLevel.undetected:
+        return 'Not Detected';
       case RiskLevel.low:
         return 'Low Risk';
       case RiskLevel.moderate:
@@ -17,6 +19,8 @@ extension RiskLevelExtension on RiskLevel {
 
   Color get color {
     switch (this) {
+      case RiskLevel.undetected:
+        return AppColors.textSecondary;
       case RiskLevel.low:
         return AppColors.riskLow;
       case RiskLevel.moderate:
@@ -28,6 +32,8 @@ extension RiskLevelExtension on RiskLevel {
 
   Color get backgroundColor {
     switch (this) {
+      case RiskLevel.undetected:
+        return AppColors.surface;
       case RiskLevel.low:
         return AppColors.riskLowBg;
       case RiskLevel.moderate:
@@ -39,6 +45,8 @@ extension RiskLevelExtension on RiskLevel {
 
   IconData get icon {
     switch (this) {
+      case RiskLevel.undetected:
+        return Icons.image_search_outlined;
       case RiskLevel.low:
         return Icons.check_circle_outline;
       case RiskLevel.moderate:
@@ -50,6 +58,8 @@ extension RiskLevelExtension on RiskLevel {
 
   static RiskLevel fromString(String value) {
     switch (value.toLowerCase()) {
+      case 'undetected':
+        return RiskLevel.undetected;
       case 'low':
         return RiskLevel.low;
       case 'moderate':
@@ -86,15 +96,23 @@ class Assessment {
   });
 
   factory Assessment.fromJson(Map<String, dynamic> json, {String? imagePath}) {
+    final centralLineDetected = json['central_line_detected'] ?? false;
+
+    // If no central line was detected, override to undetected regardless
+    // of what risk_level the model returned
+    final riskLevel = centralLineDetected
+        ? RiskLevelExtension.fromString(json['risk_level'] ?? 'low')
+        : RiskLevel.undetected;
+
     return Assessment(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
-      riskLevel: RiskLevelExtension.fromString(json['risk_level'] ?? 'low'),
-      centralLineDetected: json['central_line_detected'] ?? false,
+      riskLevel: riskLevel,
+      centralLineDetected: centralLineDetected,
       visualFindings: List<String>.from(json['visual_findings'] ?? []),
       reasoning: json['reasoning'] ?? '',
       patientMessage: json['patient_message'] ?? '',
-      escalate: json['escalate'] ?? false,
+      escalate: centralLineDetected && (json['escalate'] ?? false),
       imagePath: imagePath,
     );
   }

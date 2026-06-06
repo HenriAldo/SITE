@@ -79,7 +79,7 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen> {
               Switch(
                 value: _showReviewed,
                 onChanged: (v) => setState(() => _showReviewed = v),
-                activeColor: AppColors.teal,
+                activeColor: AppColors.accent,
               ),
             ],
           ),
@@ -129,7 +129,7 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: AppColors.teal),
+            child: CircularProgressIndicator(color: AppColors.accent),
           );
         }
         if (snapshot.hasError) {

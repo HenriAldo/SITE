@@ -133,11 +133,11 @@ class _SymptomQuestionnaireScreenState
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.teal.withOpacity(0.15)
+              ? AppColors.accent.withOpacity(0.15)
               : AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? AppColors.teal : AppColors.cardBorder,
+            color: isSelected ? AppColors.accent : AppColors.cardBorder,
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -145,14 +145,14 @@ class _SymptomQuestionnaireScreenState
           children: [
             Icon(
               icon,
-              color: isSelected ? AppColors.teal : AppColors.textSecondary,
+              color: isSelected ? AppColors.accent : AppColors.textSecondary,
               size: 24,
             ),
             const SizedBox(height: 6),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? AppColors.teal : AppColors.textSecondary,
+                color: isSelected ? AppColors.accent : AppColors.textSecondary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -236,10 +236,10 @@ class _SymptomQuestionnaireScreenState
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: value ? AppColors.teal.withOpacity(0.1) : AppColors.surface,
+          color: value ? AppColors.accent.withOpacity(0.1) : AppColors.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: value ? AppColors.teal.withOpacity(0.5) : AppColors.cardBorder,
+            color: value ? AppColors.accent.withOpacity(0.5) : AppColors.cardBorder,
           ),
         ),
         child: Row(
@@ -247,7 +247,7 @@ class _SymptomQuestionnaireScreenState
             Icon(
               icon,
               size: 20,
-              color: value ? AppColors.teal : AppColors.textSecondary,
+              color: value ? AppColors.accent : AppColors.textSecondary,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -275,7 +275,7 @@ class _SymptomQuestionnaireScreenState
             Checkbox(
               value: value,
               onChanged: (v) => onChanged(v ?? false),
-              activeColor: AppColors.teal,
+              activeColor: AppColors.accent,
               side: const BorderSide(color: AppColors.textSecondary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(4),
@@ -300,16 +300,26 @@ class _SymptomQuestionnaireScreenState
       hasDrainage: _hasDrainage,
     );
 
-    // Demo patient profile — will come from stored profile
-    final profile = PatientProfile(
-      name: 'Max',
-      age: 54,
-      catheterType: 'PICC',
-      insertionDate: DateTime.now().subtract(const Duration(days: 12)),
-      diagnosis: 'DLBCL on R-CHOP',
-      isImmunosuppressed: true,
-      comorbidities: ['Hypertension'],
-    );
+    // Load real profile from Firestore
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    final profile = userId != null
+        ? await FirestoreService().getProfile(userId) ??
+            PatientProfile(
+              name: FirebaseAuth.instance.currentUser?.displayName ?? '',
+              age: 0,
+              catheterType: 'Unknown',
+              insertionDate: DateTime.now(),
+              diagnosis: 'Not provided',
+              isImmunosuppressed: false,
+            )
+        : PatientProfile(
+            name: '',
+            age: 0,
+            catheterType: 'Unknown',
+            insertionDate: DateTime.now(),
+            diagnosis: 'Not provided',
+            isImmunosuppressed: false,
+          );
 
     try {
       final assessment = await AiService().analyzeImage(

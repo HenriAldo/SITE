@@ -8,8 +8,8 @@ class AppTheme {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: AppColors.background,
         colorScheme: const ColorScheme.dark(
-          primary: AppColors.teal,
-          secondary: AppColors.teal,
+          primary: AppColors.accent,
+          secondary: AppColors.accent,
           surface: AppColors.surface,
           onPrimary: Colors.white,
           onSurface: AppColors.textPrimary,
@@ -36,7 +36,7 @@ class AppTheme {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.teal,
+            backgroundColor: AppColors.accent,
             foregroundColor: Colors.white,
             minimumSize: const Size.fromHeight(52),
             shape: RoundedRectangleBorder(
@@ -51,8 +51,8 @@ class AppTheme {
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.teal,
-            side: const BorderSide(color: AppColors.teal),
+            foregroundColor: AppColors.accent,
+            side: const BorderSide(color: AppColors.accent),
             minimumSize: const Size.fromHeight(52),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -113,14 +113,14 @@ class AppTheme {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.teal, width: 1.5),
+            borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
           ),
           labelStyle: const TextStyle(color: AppColors.textSecondary),
           hintStyle: const TextStyle(color: AppColors.textSecondary),
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: AppColors.surface,
-          selectedItemColor: AppColors.teal,
+          selectedItemColor: AppColors.accent,
           unselectedItemColor: AppColors.textSecondary,
           type: BottomNavigationBarType.fixed,
           elevation: 0,

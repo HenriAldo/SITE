@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -22,7 +23,7 @@ class HistoryScreen extends StatelessWidget {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(color: AppColors.teal),
+                    child: CircularProgressIndicator(color: AppColors.accent),
                   );
                 }
                 if (snapshot.hasError) {
@@ -69,56 +70,126 @@ class HistoryScreen extends StatelessWidget {
   Widget _buildHistoryCard(BuildContext context, Assessment assessment) {
     final dateStr =
         DateFormat('EEEE, d MMM — HH:mm').format(assessment.timestamp);
+    final hasImage = assessment.imagePath != null &&
+        File(assessment.imagePath!).existsSync();
 
     return Container(
-      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.cardBorder),
       ),
+      clipBehavior: Clip.hardEdge,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                dateStr,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(fontSize: 13),
-              ),
-              RiskBadge(riskLevel: assessment.riskLevel),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            assessment.patientMessage,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
-                ),
-          ),
-          if (assessment.escalate) ...[
-            const SizedBox(height: 10),
-            Row(
+          // Photo
+          if (hasImage)
+            _buildImageHeader(assessment.imagePath!, assessment.riskLevel)
+          else
+            _buildNoImagePlaceholder(assessment.riskLevel),
+
+          // Text content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.person_outline,
-                    size: 13, color: AppColors.riskModerate),
-                const SizedBox(width: 5),
-                Text(
-                  'Escalated to clinician',
-                  style: TextStyle(
-                    color: AppColors.riskModerate,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      dateStr,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(fontSize: 12),
+                    ),
+                    RiskBadge(riskLevel: assessment.riskLevel),
+                  ],
                 ),
+                const SizedBox(height: 10),
+                Text(
+                  assessment.patientMessage,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                ),
+                if (assessment.escalate) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline,
+                          size: 13, color: AppColors.riskModerate),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Escalated to clinician',
+                        style: TextStyle(
+                          color: AppColors.riskModerate,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageHeader(String imagePath, RiskLevel riskLevel) {
+    return Stack(
+      children: [
+        Image.file(
+          File(imagePath),
+          width: double.infinity,
+          height: 160,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildNoImagePlaceholder(riskLevel),
+        ),
+        // Subtle gradient overlay so the badge stays readable
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.3),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNoImagePlaceholder(RiskLevel riskLevel) {
+    return Container(
+      width: double.infinity,
+      height: 72,
+      color: AppColors.navyLight,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_not_supported_outlined,
+              size: 18, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Text(
+            'No photo available',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
         ],
       ),
     );

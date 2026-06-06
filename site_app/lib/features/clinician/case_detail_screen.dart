@@ -46,7 +46,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
               onPressed: _isSaving ? null : _markReviewed,
               icon: const Icon(Icons.check, size: 16),
               label: const Text('Mark reviewed'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.teal),
+              style: TextButton.styleFrom(foregroundColor: AppColors.accent),
             ),
         ],
       ),
@@ -80,11 +80,11 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: AppColors.teal.withOpacity(0.15),
+            color: AppColors.accent.withOpacity(0.15),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.person_outline,
-              color: AppColors.teal, size: 24),
+              color: AppColors.accent, size: 24),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -157,7 +157,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                     const Padding(
                       padding: EdgeInsets.only(top: 6),
                       child: CircleAvatar(
-                          radius: 3, backgroundColor: AppColors.teal),
+                          radius: 3, backgroundColor: AppColors.accent),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -242,7 +242,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: AppColors.teal),
+              Icon(icon, size: 16, color: AppColors.accent),
               const SizedBox(width: 8),
               Text(title, style: Theme.of(context).textTheme.titleMedium),
             ],

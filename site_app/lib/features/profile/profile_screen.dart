@@ -5,13 +5,70 @@ import '../../core/theme/app_colors.dart';
 import '../../data/models/patient_profile.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
+import 'care_team_screen.dart';
+import 'faq_screen.dart';
+import 'profile_edit_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  User? get _user => FirebaseAuth.instance.currentUser;
+
+  Future<void> _editName(BuildContext context) async {
+    final controller = TextEditingController(text: _user?.displayName ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Your name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            hintText: 'Enter your name',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      await _user?.updateDisplayName(result);
+      // Reload user so displayName is fresh
+      await FirebaseAuth.instance.currentUser?.reload();
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> _openEditScreen(BuildContext context, PatientProfile? profile) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileEditScreen(existing: profile),
+      ),
+    );
+    if (saved == true && mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _user;
 
     return Scaffold(
       appBar: AppBar(title: const Text('My Profile')),
@@ -32,18 +89,20 @@ class ProfileScreen extends StatelessWidget {
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(32),
-                      child: CircularProgressIndicator(color: AppColors.teal),
+                      child: CircularProgressIndicator(color: AppColors.accent),
                     ),
                   )
                 else if (profile != null) ...[
                   _buildCatheterCard(context, profile),
                   const SizedBox(height: 20),
                   _buildClinicalCard(context, profile),
+                  const SizedBox(height: 20),
+                  _buildCareTeamCard(context, profile),
                 ] else ...[
-                  _buildNoProfileCard(context),
+                  _buildNoProfileCard(context, profile),
                 ],
                 const SizedBox(height: 20),
-                _buildSupportCard(context),
+                _buildFaqSection(context),
                 const SizedBox(height: 28),
                 _buildSignOutButton(context),
                 const SizedBox(height: 16),
@@ -59,6 +118,8 @@ class ProfileScreen extends StatelessWidget {
   // ── Account ───────────────────────────────────────────────────
 
   Widget _buildAccountCard(BuildContext context, User? user) {
+    final hasName = user?.displayName != null && user!.displayName!.isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -72,20 +133,41 @@ class ProfileScreen extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppColors.teal.withOpacity(0.15),
+              color: AppColors.accent.withOpacity(0.15),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.person_outline,
-                color: AppColors.teal, size: 28),
+                color: AppColors.accent, size: 28),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  user?.displayName ?? 'Patient',
-                  style: Theme.of(context).textTheme.titleMedium,
+                // Tappable name row
+                GestureDetector(
+                  onTap: () => _editName(context),
+                  child: Row(
+                    children: [
+                      Text(
+                        hasName ? user!.displayName! : 'Add your name',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: hasName
+                                  ? AppColors.textPrimary
+                                  : AppColors.textSecondary,
+                              fontStyle: hasName
+                                  ? FontStyle.normal
+                                  : FontStyle.italic,
+                            ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.edit_outlined,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -126,8 +208,10 @@ class ProfileScreen extends StatelessWidget {
       title: 'Clinical Context',
       icon: Icons.local_hospital_outlined,
       children: [
-        _row(context, 'Diagnosis', profile.diagnosis),
-        _row(context, 'Age', '${profile.age}'),
+        if (profile.diagnosis.isNotEmpty)
+          _row(context, 'Diagnosis', profile.diagnosis),
+        if (profile.age > 0)
+          _row(context, 'Age', '${profile.age}'),
         _row(
           context,
           'Immunosuppressed',
@@ -144,7 +228,36 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNoProfileCard(BuildContext context) {
+  // ── Care Team ─────────────────────────────────────────────────
+
+  Widget _buildCareTeamCard(BuildContext context, PatientProfile profile) {
+    final team = profile.careTeam;
+    final hasTeam = team != null && !team.isEmpty;
+
+    return _sectionCard(
+      context,
+      title: 'Care Team',
+      icon: Icons.groups_outlined,
+      onEdit: () => _openEditScreen(context, profile),
+      children: hasTeam
+          ? [
+              if (team!.clinicianName.isNotEmpty)
+                _row(context, 'Physician', team.clinicianName),
+              if (team.phone.isNotEmpty)
+                _row(context, 'Phone', team.phone),
+              if (team.clinic.isNotEmpty)
+                _row(context, 'Clinic', team.clinic),
+            ]
+          : [
+              Text(
+                'No care team added yet. Tap edit to add your treating physician and contact details.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+    );
+  }
+
+  Widget _buildNoProfileCard(BuildContext context, PatientProfile? profile) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -165,7 +278,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Your care team will set up your profile at catheter insertion.',
+            'Your care team will set up your clinical profile at catheter insertion.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -176,7 +289,7 @@ class ProfileScreen extends StatelessWidget {
 
   // ── Support ───────────────────────────────────────────────────
 
-  Widget _buildSupportCard(BuildContext context) {
+  Widget _buildFaqSection(BuildContext context) {
     return _sectionCard(
       context,
       title: 'Help & Support',
@@ -184,16 +297,21 @@ class ProfileScreen extends StatelessWidget {
       children: [
         _actionRow(
           context,
-          icon: Icons.phone_outlined,
+          icon: Icons.groups_outlined,
           label: 'Contact your care team',
-          onTap: () {},
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CareTeamScreen()),
+          ),
         ),
         _actionRow(
           context,
-          icon: Icons.emergency_outlined,
-          label: 'Emergency contacts',
-          onTap: () {},
-          color: AppColors.riskHigh,
+          icon: Icons.quiz_outlined,
+          label: 'Frequently asked questions',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const FaqScreen()),
+          ),
         ),
       ],
     );
@@ -231,6 +349,7 @@ class ProfileScreen extends StatelessWidget {
     required String title,
     required IconData icon,
     required List<Widget> children,
+    VoidCallback? onEdit,
   }) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -244,9 +363,18 @@ class ProfileScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: AppColors.teal),
+              Icon(icon, size: 16, color: AppColors.accent),
               const SizedBox(width: 8),
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              Expanded(
+                child: Text(
+                    title, style: Theme.of(context).textTheme.titleMedium),
+              ),
+              if (onEdit != null)
+                GestureDetector(
+                  onTap: onEdit,
+                  child: const Icon(Icons.edit_outlined,
+                      size: 16, color: AppColors.textSecondary),
+                ),
             ],
           ),
           const SizedBox(height: 16),

@@ -129,7 +129,7 @@ class ResultScreen extends StatelessWidget {
                           padding: EdgeInsets.only(top: 6),
                           child: CircleAvatar(
                             radius: 3,
-                            backgroundColor: AppColors.teal,
+                            backgroundColor: AppColors.accent,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -184,10 +184,10 @@ class ResultScreen extends StatelessWidget {
                   margin: const EdgeInsets.only(top: 3),
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: AppColors.teal.withOpacity(0.15),
+                    color: AppColors.accent.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Icon(step.$1, size: 14, color: AppColors.teal),
+                  child: Icon(step.$1, size: 14, color: AppColors.accent),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -208,6 +208,12 @@ class ResultScreen extends StatelessWidget {
 
   List<(IconData, String)> _getNextSteps(BuildContext context) {
     switch (assessment.riskLevel) {
+      case RiskLevel.undetected:
+        return [
+          (Icons.camera_alt_outlined, 'Take a new photo making sure the catheter exit site is clearly visible.'),
+          (Icons.light_mode_outlined, 'Use good lighting and hold the camera 15–20 cm from the site.'),
+          (Icons.visibility_outlined, 'Make sure the dressing and the surrounding skin are both in the frame.'),
+        ];
       case RiskLevel.low:
         return [
           (Icons.calendar_today_outlined, 'Continue your daily check-in as scheduled.'),
@@ -232,6 +238,13 @@ class ResultScreen extends StatelessWidget {
   Widget _buildActions(BuildContext context) {
     return Column(
       children: [
+        if (assessment.riskLevel == RiskLevel.undetected)
+          ElevatedButton.icon(
+            onPressed: () =>
+                Navigator.popUntil(context, (route) => route.isFirst),
+            icon: const Icon(Icons.camera_alt_outlined, size: 18),
+            label: const Text('Try Again'),
+          ),
         if (assessment.riskLevel == RiskLevel.high)
           ElevatedButton.icon(
             onPressed: () {},
@@ -241,7 +254,8 @@ class ResultScreen extends StatelessWidget {
               backgroundColor: AppColors.riskHigh,
             ),
           ),
-        if (assessment.riskLevel != RiskLevel.high) ...[
+        if (assessment.riskLevel != RiskLevel.high &&
+            assessment.riskLevel != RiskLevel.undetected) ...[
           ElevatedButton(
             onPressed: () =>
                 Navigator.popUntil(context, (route) => route.isFirst),
@@ -266,6 +280,8 @@ class ResultScreen extends StatelessWidget {
 
   String get _riskTitle {
     switch (assessment.riskLevel) {
+      case RiskLevel.undetected:
+        return 'Catheter site not identified';
       case RiskLevel.low:
         return 'No signs of concern';
       case RiskLevel.moderate:
@@ -277,6 +293,8 @@ class ResultScreen extends StatelessWidget {
 
   String get _riskSubtitle {
     switch (assessment.riskLevel) {
+      case RiskLevel.undetected:
+        return 'No assessment was made — the catheter exit site was not clearly visible in this photo.';
       case RiskLevel.low:
         return 'Your catheter site looks normal. Continue monitoring daily.';
       case RiskLevel.moderate:

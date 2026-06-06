@@ -65,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           'SITE',
           style: TextStyle(
-            color: AppColors.teal,
+            color: AppColors.accent,
             fontSize: 13,
             fontWeight: FontWeight.w700,
             letterSpacing: 3,
@@ -170,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Text(
             _isLogin ? 'Register' : 'Sign in',
             style: TextStyle(
-              color: AppColors.teal,
+              color: AppColors.accent,
               fontWeight: FontWeight.w600,
             ),
           ),

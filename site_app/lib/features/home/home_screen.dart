@@ -1,6 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
+import '../../data/models/patient_profile.dart';
+import '../../data/services/firestore_service.dart';
 import '../../shared/widgets/risk_badge.dart';
 import '../assessment/guided_capture_screen.dart';
 import '../profile/profile_screen.dart';
@@ -38,29 +42,42 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.userChanges(),
+      builder: (context, snapshot) {
+        final name = snapshot.data?.displayName;
+        final hour = DateTime.now().hour;
+        final timeGreeting = hour < 12
+            ? 'Good morning,'
+            : hour < 18
+                ? 'Good afternoon,'
+                : 'Good evening,';
+        final greeting = name != null && name.isNotEmpty
+            ? '$timeGreeting\n$name.'
+            : timeGreeting;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'SITE',
-              style: TextStyle(
-                color: AppColors.teal,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 3,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'SITE',
+                  style: TextStyle(
+                    color: AppColors.accent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  greeting,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Good morning,\nMax.',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
         GestureDetector(
           onTap: () => Navigator.push(
             context,
@@ -77,7 +94,9 @@ class HomeScreen extends StatelessWidget {
             child: const Icon(Icons.person_outline, color: AppColors.textSecondary),
           ),
         ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -90,12 +109,12 @@ class HomeScreen extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.teal.withOpacity(0.15),
-            AppColors.teal.withOpacity(0.05),
+            AppColors.accent.withOpacity(0.15),
+            AppColors.accent.withOpacity(0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.teal.withOpacity(0.3)),
+        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,7 +125,7 @@ class HomeScreen extends StatelessWidget {
                 width: 10,
                 height: 10,
                 decoration: BoxDecoration(
-                  color: AppColors.teal,
+                  color: AppColors.accent,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -114,7 +133,7 @@ class HomeScreen extends StatelessWidget {
               Text(
                 'Daily check-in due',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.teal,
+                      color: AppColors.accent,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 1,
                     ),
@@ -149,61 +168,141 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildLastAssessmentCard(BuildContext context) {
-    // Placeholder — will be populated from local storage
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return const SizedBox.shrink();
+
+    return StreamBuilder<List<Assessment>>(
+      stream: FirestoreService().assessmentStream(userId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            height: 80,
+            child: Center(
+              child: CircularProgressIndicator(
+                  color: AppColors.accent, strokeWidth: 2),
+            ),
+          );
+        }
+
+        final assessments = snapshot.data ?? [];
+        if (assessments.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.history_outlined,
+                    size: 20, color: AppColors.textSecondary),
+                const SizedBox(width: 12),
+                Text(
+                  'No assessments yet — complete your first check-in.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          );
+        }
+
+        final latest = assessments.first;
+        final dateStr =
+            DateFormat('EEEE, d MMM — HH:mm').format(latest.timestamp);
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Last Assessment',
-                style: Theme.of(context).textTheme.titleMedium,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Last Assessment',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  RiskBadge(riskLevel: latest.riskLevel),
+                ],
               ),
-              RiskBadge(riskLevel: RiskLevel.low),
+              const SizedBox(height: 6),
+              Text(
+                dateStr,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                latest.patientMessage,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Yesterday, 09:14',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'No signs of infection. Continue routine monitoring.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildInfoSection(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Your catheter',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        _buildInfoRow(context, Icons.medical_services_outlined, 'Type', 'PICC Line'),
-        _buildInfoRow(context, Icons.calendar_today_outlined, 'Inserted', '12 days ago'),
-        _buildInfoRow(context, Icons.local_hospital_outlined, 'Care team', 'Oncology, Station 4'),
-        const SizedBox(height: 20),
-        _buildEmergencyBanner(context),
-      ],
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
+    return FutureBuilder<PatientProfile?>(
+      future: userId != null
+          ? FirestoreService().getProfile(userId)
+          : Future.value(null),
+      builder: (context, snapshot) {
+        final profile = snapshot.data;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your catheter',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            if (profile != null) ...[
+              if (profile.catheterType.isNotEmpty)
+                _buildInfoRow(context, Icons.medical_services_outlined,
+                    'Type', profile.catheterType),
+              _buildInfoRow(
+                context,
+                Icons.calendar_today_outlined,
+                'Inserted',
+                '${profile.daysSinceInsertion} days ago',
+              ),
+              if (profile.careTeam != null &&
+                  profile.careTeam!.clinic.isNotEmpty)
+                _buildInfoRow(context, Icons.local_hospital_outlined,
+                    'Care team', profile.careTeam!.clinic),
+            ] else ...[
+              _buildInfoRow(context, Icons.info_outline, 'Profile',
+                  'Set up in your profile'),
+            ],
+            const SizedBox(height: 20),
+            _buildEmergencyBanner(context),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value) {
+  Widget _buildInfoRow(
+      BuildContext context, IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -214,12 +313,15 @@ class HomeScreen extends StatelessWidget {
             '$label: ',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),

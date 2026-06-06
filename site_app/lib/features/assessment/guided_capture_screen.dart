@@ -75,13 +75,13 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
           height: 32,
           decoration: BoxDecoration(
             color: isCompleted
-                ? AppColors.teal
+                ? AppColors.accent
                 : isActive
-                    ? AppColors.teal.withOpacity(0.2)
+                    ? AppColors.accent.withOpacity(0.2)
                     : AppColors.surface,
             shape: BoxShape.circle,
             border: Border.all(
-              color: isActive || isCompleted ? AppColors.teal : AppColors.cardBorder,
+              color: isActive || isCompleted ? AppColors.accent : AppColors.cardBorder,
             ),
           ),
           child: Center(
@@ -90,7 +90,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
                 : Text(
                     '$number',
                     style: TextStyle(
-                      color: isActive ? AppColors.teal : AppColors.textSecondary,
+                      color: isActive ? AppColors.accent : AppColors.textSecondary,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -102,7 +102,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
           label,
           style: TextStyle(
             fontSize: 11,
-            color: isActive ? AppColors.teal : AppColors.textSecondary,
+            color: isActive ? AppColors.accent : AppColors.textSecondary,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
@@ -143,7 +143,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
   Widget _buildGuidelineRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppColors.teal),
+        Icon(icon, size: 16, color: AppColors.accent),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
@@ -198,16 +198,16 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.teal.withOpacity(0.4), style: BorderStyle.solid),
+          border: Border.all(color: AppColors.accent.withOpacity(0.4), style: BorderStyle.solid),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_a_photo_outlined, size: 40, color: AppColors.teal.withOpacity(0.7)),
+            Icon(Icons.add_a_photo_outlined, size: 40, color: AppColors.accent.withOpacity(0.7)),
             const SizedBox(height: 12),
             Text(
               'Tap to take photo',
-              style: TextStyle(color: AppColors.teal, fontWeight: FontWeight.w500),
+              style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 4),
             Text(
