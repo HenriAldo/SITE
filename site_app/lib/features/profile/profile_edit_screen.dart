@@ -7,8 +7,17 @@ import '../../data/services/firestore_service.dart';
 
 class ProfileEditScreen extends StatefulWidget {
   final PatientProfile? existing;
+  /// If provided, saves to this patient's userId instead of the logged-in user.
+  final String? targetUserId;
+  /// Display label shown in the app bar when editing another patient.
+  final String? patientLabel;
 
-  const ProfileEditScreen({super.key, this.existing});
+  const ProfileEditScreen({
+    super.key,
+    this.existing,
+    this.targetUserId,
+    this.patientLabel,
+  });
 
   @override
   State<ProfileEditScreen> createState() => _ProfileEditScreenState();
@@ -78,7 +87,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existing == null ? 'Set Up Profile' : 'Edit Profile'),
+        title: Text(widget.patientLabel != null
+            ? 'Profile — ${widget.patientLabel}'
+            : widget.existing == null
+                ? 'Set Up Profile'
+                : 'Edit Profile'),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _save,
@@ -298,7 +311,9 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       ),
     );
 
-    final userId = FirebaseAuth.instance.currentUser?.uid;
+    // Save to target patient if set (clinician editing), otherwise own profile
+    final userId = widget.targetUserId ??
+        FirebaseAuth.instance.currentUser?.uid;
     if (userId != null) {
       await FirestoreService().saveProfile(userId, profile);
     }

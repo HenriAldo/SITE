@@ -198,9 +198,11 @@ class HomeScreen extends StatelessWidget {
                 const Icon(Icons.history_outlined,
                     size: 20, color: AppColors.textSecondary),
                 const SizedBox(width: 12),
-                Text(
-                  'No assessments yet — complete your first check-in.',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                Expanded(
+                  child: Text(
+                    'No assessments yet — complete your first check-in.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
               ],
             ),

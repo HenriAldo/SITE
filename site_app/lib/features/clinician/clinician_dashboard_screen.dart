@@ -7,6 +7,7 @@ import '../../data/services/firestore_service.dart';
 import '../../data/models/assessment.dart';
 import '../../shared/widgets/risk_badge.dart';
 import 'case_detail_screen.dart';
+import 'patients_screen.dart';
 
 class ClinicianDashboardScreen extends StatefulWidget {
   const ClinicianDashboardScreen({super.key});
@@ -16,8 +17,22 @@ class ClinicianDashboardScreen extends StatefulWidget {
       _ClinicianDashboardScreenState();
 }
 
-class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen> {
+class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
+    with SingleTickerProviderStateMixin {
   bool _showReviewed = false;
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,13 +61,33 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen> {
             onPressed: () => AuthService().signOut(),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: AppColors.accent,
+          labelColor: AppColors.accent,
+          unselectedLabelColor: AppColors.textSecondary,
+          tabs: const [
+            Tab(icon: Icon(Icons.flag_outlined, size: 18), text: 'Flagged Cases'),
+            Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Patients'),
+          ],
+        ),
       ),
-      body: Column(
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          _buildFilterBar(),
-          Expanded(child: _buildCaseList()),
+          _buildFlaggedTab(),
+          const PatientsScreen(),
         ],
       ),
+    );
+  }
+
+  Widget _buildFlaggedTab() {
+    return Column(
+      children: [
+        _buildFilterBar(),
+        Expanded(child: _buildCaseList()),
+      ],
     );
   }
 

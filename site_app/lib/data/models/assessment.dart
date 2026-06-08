@@ -82,6 +82,7 @@ class Assessment {
   final String patientMessage;
   final bool escalate;
   final String? imagePath;
+  final String? imageUrl;
 
   const Assessment({
     required this.id,
@@ -93,6 +94,7 @@ class Assessment {
     required this.patientMessage,
     required this.escalate,
     this.imagePath,
+    this.imageUrl,
   });
 
   factory Assessment.fromJson(Map<String, dynamic> json, {String? imagePath}) {
@@ -114,12 +116,26 @@ class Assessment {
       patientMessage: json['patient_message'] ?? '',
       escalate: centralLineDetected && (json['escalate'] ?? false),
       imagePath: imagePath,
+      imageUrl: json['image_url'] as String?,
     );
   }
 
+  Assessment copyWith({String? imageUrl}) => Assessment(
+        id: id,
+        timestamp: timestamp,
+        riskLevel: riskLevel,
+        centralLineDetected: centralLineDetected,
+        visualFindings: visualFindings,
+        reasoning: reasoning,
+        patientMessage: patientMessage,
+        escalate: escalate,
+        imagePath: imagePath,
+        imageUrl: imageUrl ?? this.imageUrl,
+      );
+
   Map<String, dynamic> toJson() => {
         'id': id,
-        'timestamp': timestamp.toIso8601String(),
+        'timestamp': timestamp.toUtc().toIso8601String(),
         'risk_level': riskLevel.name,
         'central_line_detected': centralLineDetected,
         'visual_findings': visualFindings,
@@ -127,5 +143,6 @@ class Assessment {
         'patient_message': patientMessage,
         'escalate': escalate,
         'image_path': imagePath,
+        'image_url': imageUrl,
       };
 }

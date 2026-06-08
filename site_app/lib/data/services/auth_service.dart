@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'firestore_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -23,10 +24,16 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    return await _auth.createUserWithEmailAndPassword(
+    final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
+    // Store email in Firestore so clinicians can identify patients
+    await FirestoreService().saveUserEmail(
+      credential.user!.uid,
+      email.trim(),
+    );
+    return credential;
   }
 
   Future<void> signOut() async {

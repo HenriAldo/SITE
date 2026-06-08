@@ -1,3 +1,5 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
@@ -57,6 +59,10 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           children: [
             _buildPatientHeader(context, dateStr),
             const SizedBox(height: 24),
+            if (widget.flaggedCase.imageUrl != null)
+              _buildImageCard(context),
+            if (widget.flaggedCase.imageUrl != null)
+              const SizedBox(height: 20),
             _buildRiskCard(context),
             const SizedBox(height: 20),
             _buildFindingsCard(context),
@@ -103,6 +109,49 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildImageCard(BuildContext context) {
+    debugPrint('── imageUrl: ${widget.flaggedCase.imageUrl}');
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: CachedNetworkImage(
+        imageUrl: widget.flaggedCase.imageUrl!,
+        width: double.infinity,
+        height: 260,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          height: 260,
+          color: AppColors.surface,
+          child: const Center(
+            child: CircularProgressIndicator(color: AppColors.accent),
+          ),
+        ),
+        errorWidget: (context, url, error) {
+          debugPrint('── image load error: $error');
+          return Container(
+            height: 260,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.broken_image_outlined,
+                      color: AppColors.textSecondary, size: 32),
+                  SizedBox(height: 8),
+                  Text('Image unavailable',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

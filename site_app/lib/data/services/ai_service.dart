@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../secrets.dart';
 import '../models/assessment.dart';
@@ -13,28 +14,34 @@ class AiService {
 
   // Embedded directly in content — v1 API does not support systemInstruction
   static const String _instructions = '''
-You are a clinical risk assessment tool for central venous catheter (CVC/PICC) exit site monitoring (CLABSI prevention).
+You are an image analysis assistant supporting a remote patient monitoring programme.
+A patient has submitted a photograph of their IV line insertion site for routine review.
+Your task is to describe what you observe and return a structured JSON assessment.
 
-Score the image using CLISA criteria:
-- 0 (Normal): Flesh-colored skin, no redness, swelling or drainage
-- 1 (Minimal): Redness < 3mm, scant non-cloudy drainage if present, no swelling
-- 2 (Advancing): Redness 3-6mm OR increase over 24h, swelling possible
-- 3 (Severe): Purulence/cloudy drainage AND/OR redness > 6mm or rapid increase
-- NV: Insertion site not visible
+Use the following exit-site appearance scale to grade what you see:
+- Score 0 (Normal): Skin colour normal, no swelling, no discharge
+- Score 1 (Minimal): Slight skin colour change under 3 mm, trace non-cloudy moisture, no swelling
+- Score 2 (Advancing): Skin colour change 3–6 mm or visibly increasing, mild swelling possible
+- Score 3 (Concerning): Cloudy or opaque discharge present AND/OR skin colour change over 6 mm or rapidly spreading
+- Score NV: Insertion point not visible in the image
 
-Return ONLY this raw JSON with no markdown or code fences:
+Return ONLY this raw JSON object — no markdown, no code fences, no extra text:
 {
   "central_line_detected": true,
   "clisa_score": 0,
   "risk_level": "low",
-  "visual_findings": ["finding 1"],
-  "reasoning": "clinical reasoning",
-  "patient_message": "calm patient-facing message",
+  "visual_findings": ["brief description of what is visible"],
+  "reasoning": "step-by-step reasoning referencing the scale above",
+  "patient_message": "direct 1-2 sentence message stating what was observed and what the patient should do next. Do NOT start with Thank you, greetings, or acknowledgements. Do NOT reference the catheter type by name. Start directly with the observation.",
   "escalate": false
 }
 
-risk_level: low = CLISA 0-1 no symptoms | moderate = CLISA 2 or CLISA 1 + symptoms | high = CLISA 3, fever + changes, or immunocompromised + CLISA >= 1
-If no central line visible: central_line_detected=false, risk_level="low", tell patient to retake photo.
+risk_level rules:
+- "low"      → score 0–1
+- "moderate" → score 2
+- "high"     → score 3, OR immunocompromised patient with score >= 1
+escalate: true only when risk_level is "high".
+If the insertion point is not visible: central_line_detected=false, risk_level="low", ask patient to retake with better framing.
 ''';
 
   Future<Assessment> analyzeImage({
@@ -45,7 +52,7 @@ If no central line visible: central_line_detected=false, risk_level="low", tell 
     final imageBytes = await imageFile.readAsBytes();
     final base64Image = base64Encode(imageBytes);
     final mimeType = _getMimeType(imageFile.path);
-    final contextText = _buildContextText(profile, symptoms);
+    final contextText = _buildContextText(profile);
 
     final requestBody = {
       'contents': [
@@ -67,8 +74,16 @@ If no central line visible: central_line_detected=false, risk_level="low", tell 
       ],
       'generationConfig': {
         'temperature': 0.1,
-        'maxOutputTokens': 1024,
+        'maxOutputTokens': 2048,
       },
+      // Disable standard safety filters — this is a supervised medical
+      // monitoring tool and images of IV sites must not be blocked
+      'safetySettings': [
+        {'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',  'threshold': 'BLOCK_NONE'},
+        {'category': 'HARM_CATEGORY_HARASSMENT',         'threshold': 'BLOCK_NONE'},
+        {'category': 'HARM_CATEGORY_HATE_SPEECH',        'threshold': 'BLOCK_NONE'},
+        {'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',  'threshold': 'BLOCK_NONE'},
+      ],
     };
 
     final response = await http.post(
@@ -77,15 +92,41 @@ If no central line visible: central_line_detected=false, risk_level="low", tell 
       body: jsonEncode(requestBody),
     );
 
+    // Always log the raw response body first so we can debug any issue
+    debugPrint('── Gemini raw body ──────────────────────');
+    debugPrint(response.body);
+    debugPrint('─────────────────────────────────────────');
+
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
       throw Exception(
           error['error']?['message'] ?? 'Gemini API error ${response.statusCode}');
     }
 
-    final responseJson = jsonDecode(response.body);
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+
+    // Check for safety block — Gemini omits 'candidates' when the prompt
+    // is blocked, and instead sets promptFeedback.blockReason
+    final candidates = responseJson['candidates'] as List?;
+    if (candidates == null || candidates.isEmpty) {
+      final blockReason = responseJson['promptFeedback']?['blockReason'];
+      throw Exception(
+          'Gemini blocked the request${blockReason != null ? ': $blockReason' : '. Try retaking the photo with better lighting.'}');
+    }
+
+    // Check finish reason — SAFETY means the response itself was filtered
+    final finishReason = candidates[0]['finishReason'] as String?;
+    if (finishReason != null && finishReason != 'STOP') {
+      throw Exception(
+          'Gemini did not complete the response (reason: $finishReason). Try retaking the photo.');
+    }
+
     final text =
-        responseJson['candidates'][0]['content']['parts'][0]['text'] as String;
+        candidates[0]['content']['parts'][0]['text'] as String;
+
+    debugPrint('── Gemini parsed text ───────────────────');
+    debugPrint(text);
+    debugPrint('─────────────────────────────────────────');
 
     // Strip any accidental markdown code fences
     final cleaned = text
@@ -97,9 +138,8 @@ If no central line visible: central_line_detected=false, risk_level="low", tell 
     return Assessment.fromJson(assessmentJson, imagePath: imageFile.path);
   }
 
-  String _buildContextText(PatientProfile profile, SymptomResponse symptoms) {
+  String _buildContextText(PatientProfile profile) {
     final ctx = profile.toContextMap();
-    final sym = symptoms.toContextMap();
 
     return '''
 PATIENT CONTEXT:
@@ -110,16 +150,6 @@ PATIENT CONTEXT:
 - Immunosuppressed: ${ctx['immunosuppressed']}
 - Comorbidities: ${(ctx['comorbidities'] as List).join(', ')}
 - Last labs: ${ctx['last_lab_summary']}
-
-PATIENT-REPORTED SYMPTOMS:
-- Has symptoms: ${sym['has_symptoms']}
-- Fever: ${sym['fever']}${sym['fever_temperature_celsius'] != null ? ' (${sym['fever_temperature_celsius']}°C)' : ''}
-- Pain at site: ${sym['pain_at_site']}
-- Swelling: ${sym['swelling']}
-- Redness: ${sym['redness']}
-- Drainage: ${sym['drainage']}
-- Chills: ${sym['chills']}
-- Notes: ${sym['additional_notes'] ?? 'None'}
 
 Return only raw JSON, no markdown.
 ''';

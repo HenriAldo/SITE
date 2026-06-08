@@ -1,9 +1,51 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import '../models/assessment.dart';
 import '../models/patient_profile.dart';
 
+
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // ── Image Upload ──────────────────────────────────────────────
+
+  Future<String> uploadAssessmentImage(
+      String userId, String assessmentId, File imageFile) async {
+    // Use the REST API directly — bypasses firebase_storage SDK v11
+    // incompatibility with the new .firebasestorage.app bucket format
+    final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final bytes = await imageFile.readAsBytes();
+    const bucket = 'site-8f4b1.firebasestorage.app';
+    final objectPath = 'assessments/$userId/$assessmentId.jpg';
+    final encodedPath = Uri.encodeComponent(objectPath);
+
+    final response = await http.post(
+      Uri.parse(
+        'https://firebasestorage.googleapis.com/v0/b/$bucket/o'
+        '?uploadType=media&name=$encodedPath',
+      ),
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Authorization': 'Bearer $token',
+      },
+      body: bytes,
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+          'Storage upload failed ${response.statusCode}: ${response.body}');
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final downloadToken = json['downloadTokens'] as String;
+    return 'https://firebasestorage.googleapis.com/v0/b/$bucket/o'
+        '/$encodedPath?alt=media&token=$downloadToken';
+  }
 
   // ── Assessments ──────────────────────────────────────────────
 
@@ -34,6 +76,7 @@ class FirestoreService {
         'user_id': userId,
         'patient_name': patientName ?? 'Unknown Patient',
         'patient_email': patientEmail ?? '',
+        'image_url': assessment.imageUrl,
         'reviewed': false,
         'reviewer_notes': '',
         'reviewed_at': null,
@@ -59,7 +102,7 @@ class FirestoreService {
       final data = doc.data();
       return Assessment(
         id: data['id'] ?? doc.id,
-        timestamp: DateTime.parse(data['timestamp']),
+        timestamp: DateTime.parse(data['timestamp']).toLocal(),
         riskLevel: RiskLevelExtension.fromString(data['risk_level'] ?? 'low'),
         centralLineDetected: data['central_line_detected'] ?? false,
         visualFindings: List<String>.from(data['visual_findings'] ?? []),
@@ -103,13 +146,14 @@ class FirestoreService {
         userId: data['user_id'] ?? '',
         patientName: data['patient_name'] ?? 'Unknown',
         patientEmail: data['patient_email'] ?? '',
-        timestamp: DateTime.parse(data['timestamp']),
+        timestamp: DateTime.parse(data['timestamp']).toLocal(),
         riskLevel: RiskLevelExtension.fromString(data['risk_level'] ?? 'low'),
         visualFindings: List<String>.from(data['visual_findings'] ?? []),
         reasoning: data['reasoning'] ?? '',
         patientMessage: data['patient_message'] ?? '',
         reviewed: data['reviewed'] ?? false,
         reviewerNotes: data['reviewer_notes'] ?? '',
+        imageUrl: data['image_url'] as String?,
       );
     } catch (_) {
       return null;
@@ -121,6 +165,82 @@ class FirestoreService {
   Future<String?> getUserRole(String userId) async {
     final doc = await _db.collection('users').doc(userId).get();
     return doc.data()?['role'] as String?;
+  }
+
+  // ── Patient List (clinician) ──────────────────────────────────
+
+  Future<List<PatientSummary>> getPatients() async {
+    final snap = await _db.collection('users').get();
+    final patients = <PatientSummary>[];
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      if (data['role'] == 'clinician') continue;
+      final profileData = data['profile'];
+      PatientProfile? profile;
+      if (profileData != null) {
+        try {
+          profile = PatientProfile.fromJson(
+              Map<String, dynamic>.from(profileData));
+        } catch (_) {}
+      }
+      patients.add(PatientSummary(
+        userId: doc.id,
+        email: data['email'] ?? '',
+        displayName: data['display_name'] ?? '',
+        hasProfile: profile != null,
+        profile: profile,
+        clinicianId: data['clinicianId'] as String?,
+      ));
+    }
+    return patients;
+  }
+
+  Future<List<PatientSummary>> getMyPatients(String clinicianId) async {
+    final snap = await _db
+        .collection('users')
+        .where('clinicianId', isEqualTo: clinicianId)
+        .get();
+    final patients = <PatientSummary>[];
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      if (data['role'] == 'clinician') continue;
+      final profileData = data['profile'];
+      PatientProfile? profile;
+      if (profileData != null) {
+        try {
+          profile = PatientProfile.fromJson(
+              Map<String, dynamic>.from(profileData));
+        } catch (_) {}
+      }
+      patients.add(PatientSummary(
+        userId: doc.id,
+        email: data['email'] ?? '',
+        displayName: data['display_name'] ?? '',
+        hasProfile: profile != null,
+        profile: profile,
+        clinicianId: clinicianId,
+      ));
+    }
+    return patients;
+  }
+
+  Future<void> assignPatientToClinician(
+      String patientId, String clinicianId) async {
+    await _db.collection('users').doc(patientId).set(
+      {'clinicianId': clinicianId},
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> saveUserEmail(String userId, String email,
+      {String? displayName}) async {
+    await _db.collection('users').doc(userId).set(
+      {
+        'email': email,
+        if (displayName != null) 'display_name': displayName,
+      },
+      SetOptions(merge: true),
+    );
   }
 
   // ── Patient Profile ───────────────────────────────────────────
@@ -159,6 +279,7 @@ class FlaggedCase {
   final String patientMessage;
   final bool reviewed;
   final String reviewerNotes;
+  final String? imageUrl;
 
   const FlaggedCase({
     required this.id,
@@ -172,5 +293,29 @@ class FlaggedCase {
     required this.patientMessage,
     required this.reviewed,
     required this.reviewerNotes,
+    this.imageUrl,
   });
+}
+
+// ── Patient Summary ───────────────────────────────────────────
+
+class PatientSummary {
+  final String userId;
+  final String email;
+  final String displayName;
+  final bool hasProfile;
+  final PatientProfile? profile;
+  final String? clinicianId;
+
+  const PatientSummary({
+    required this.userId,
+    required this.email,
+    required this.displayName,
+    required this.hasProfile,
+    this.profile,
+    this.clinicianId,
+  });
+
+  String get name =>
+      displayName.isNotEmpty ? displayName : email;
 }

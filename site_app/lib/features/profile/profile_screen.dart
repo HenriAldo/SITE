@@ -476,6 +476,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     if (confirmed == true) {
+      // Pop all routes so AuthGate is exposed and can rebuild to LoginScreen
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
       await AuthService().signOut();
     }
   }
