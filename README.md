@@ -132,10 +132,4 @@ The model integrates image findings with patient-reported symptoms and clinical 
 
 ## Disclaimer
 
-SITE is a prototype developed as part of a university product-building course. It is **not a validated medical device** and is not intended for clinical use. All assessments are for informational purposes only and do not replace clinical judgment.
-
----
-
-## Team
-
-Henri · Philipp · Paula · Alyssa · Darius
+SITE is a prototype developed as part of a university course. It is **not a validated medical device** and is not intended for clinical use. All assessments are for informational purposes only and do not replace clinical judgment.
