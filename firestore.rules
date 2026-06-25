@@ -1,0 +1,71 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Role is never written by client code — it is set manually in the
+    // console for clinician accounts. Reading it here to gate access is
+    // safe specifically because no rule below ever allows a client to
+    // write 'role'.
+    function isClinician() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'clinician';
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isClinician();
+
+      // Registration write (AuthService.register / saveUserEmail).
+      // Patients can never set their own role or clinician assignment.
+      allow create: if isOwner(userId) &&
+        !('role' in request.resource.data) &&
+        !('clinicianId' in request.resource.data);
+
+      // Patients may update their own email/display_name/profile.
+      // Clinicians may update profile (ProfileEditScreen) and clinicianId
+      // (assignPatientToClinician) on any patient document.
+      allow update: if
+        (isOwner(userId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['email', 'display_name', 'profile'])) ||
+        (isClinician() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['profile', 'clinicianId']));
+
+      allow delete: if false;
+
+      match /assessments/{assessmentId} {
+        allow read: if isOwner(userId) || isClinician();
+        allow create: if isOwner(userId);
+        allow update, delete: if false;
+      }
+    }
+
+    match /flagged_cases/{caseId} {
+      allow read: if isClinician();
+
+      // Written by FirestoreService.saveAssessment as part of the
+      // patient's own escalation batch.
+      allow create: if isSignedIn() && request.resource.data.user_id == request.auth.uid;
+
+      // Clinicians may only mark a case reviewed and add notes.
+      allow update: if isClinician() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['reviewed', 'reviewer_notes', 'reviewed_at']);
+
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

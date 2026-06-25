@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
 import 'data/services/firestore_service.dart';
 import 'features/auth/login_screen.dart';
 import 'features/clinician/clinician_dashboard_screen.dart';
@@ -14,13 +15,8 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await ThemeController.instance.load();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ),
-  );
   runApp(const SiteApp());
 }
 
@@ -29,11 +25,29 @@ class SiteApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SITE',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
-      home: const AuthGate(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.instance,
+      builder: (context, mode, _) {
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness:
+                mode == ThemeMode.light ? Brightness.dark : Brightness.light,
+          ),
+          // Re-keying forces every screen (including ones already pushed
+          // on the navigation stack) to rebuild with the new colors —
+          // without it, static AppColors lookups in already-built widgets
+          // would stay stale. The trade-off: toggling resets navigation
+          // back to the home/dashboard screen.
+          child: MaterialApp(
+            key: ValueKey(mode),
+            title: 'SITE',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.themeData,
+            home: const AuthGate(),
+          ),
+        );
+      },
     );
   }
 }
@@ -77,9 +91,24 @@ class _LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
+      backgroundColor: AppColors.background,
       body: Center(
-        child: CircularProgressIndicator(color: AppColors.accent),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.asset(
+                'assets/images/Logo.png',
+                width: 96,
+                height: 96,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(color: AppColors.accent),
+          ],
+        ),
       ),
     );
   }
@@ -110,7 +139,7 @@ class _MainShellState extends State<MainShell> {
         children: _screens,
       ),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(top: BorderSide(color: AppColors.divider)),
         ),
         child: BottomNavigationBar(

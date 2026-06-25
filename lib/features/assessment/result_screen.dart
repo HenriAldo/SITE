@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
 import '../../shared/widgets/risk_badge.dart';
+import '../profile/care_team_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final Assessment assessment;
@@ -222,8 +223,8 @@ class ResultScreen extends StatelessWidget {
         ];
       case RiskLevel.moderate:
         return [
-          (Icons.person_outlined, 'Your care team has been notified and will review this shortly.'),
-          (Icons.watch_later_outlined, 'You will be contacted within 24 hours.'),
+          (Icons.person_outlined, 'This result has been flagged for your care team to review.'),
+          (Icons.watch_later_outlined, 'They will reach out to you if there are any concerns.'),
           (Icons.emergency_outlined, 'Go to the ER immediately if you develop fever above 38°C.'),
         ];
       case RiskLevel.high:
@@ -247,7 +248,10 @@ class ResultScreen extends StatelessWidget {
           ),
         if (assessment.riskLevel == RiskLevel.high)
           ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CareTeamScreen()),
+            ),
             icon: const Icon(Icons.local_hospital_outlined, size: 18),
             label: const Text('Emergency Contacts'),
             style: ElevatedButton.styleFrom(

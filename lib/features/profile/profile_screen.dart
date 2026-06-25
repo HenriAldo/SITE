@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/theme_controller.dart';
 import '../../data/models/patient_profile.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
@@ -18,6 +19,40 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   User? get _user => FirebaseAuth.instance.currentUser;
+  bool _sendingVerification = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshVerificationStatus();
+  }
+
+  // Picks up the verified flag if the user already clicked the email link
+  // before returning to the app.
+  Future<void> _refreshVerificationStatus() async {
+    await FirebaseAuth.instance.currentUser?.reload();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _resendVerification(BuildContext context) async {
+    setState(() => _sendingVerification = true);
+    try {
+      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verification email sent.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not send verification email. Try again later.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sendingVerification = false);
+    }
+  }
 
   Future<void> _editName(BuildContext context) async {
     final controller = TextEditingController(text: _user?.displayName ?? '');
@@ -71,7 +106,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = _user;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Profile')),
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        actions: [
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: ThemeController.instance,
+            builder: (context, mode, _) {
+              final isDark = mode != ThemeMode.light;
+              return IconButton(
+                icon: Icon(
+                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+                tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                onPressed: () => ThemeController.instance
+                    .setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark),
+              );
+            },
+          ),
+        ],
+      ),
       body: FutureBuilder<PatientProfile?>(
         future: user == null
             ? Future.value(null)
@@ -84,6 +136,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAccountCard(context, user),
+                if (user != null && !user.emailVerified) ...[
+                  const SizedBox(height: 12),
+                  _buildVerifyEmailBanner(context),
+                ],
                 const SizedBox(height: 20),
                 if (snapshot.connectionState == ConnectionState.waiting)
                   const Center(
@@ -182,6 +238,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildVerifyEmailBanner(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.riskModerateBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.riskModerate.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.mark_email_unread_outlined,
+              color: AppColors.riskModerate, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Please verify your email address.',
+              style: TextStyle(
+                color: AppColors.riskModerate.withOpacity(0.9),
+                fontSize: 13,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _sendingVerification
+                ? null
+                : () => _resendVerification(context),
+            style: TextButton.styleFrom(
+                foregroundColor: AppColors.riskModerate, padding: EdgeInsets.zero),
+            child: _sendingVerification
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.riskModerate),
+                  )
+                : const Text('Resend', style: TextStyle(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Catheter ──────────────────────────────────────────────────
 
   Widget _buildCatheterCard(BuildContext context, PatientProfile profile) {
@@ -267,7 +365,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.info_outline,
+          Icon(Icons.info_outline,
               color: AppColors.textSecondary, size: 32),
           const SizedBox(height: 12),
           Text(
@@ -326,7 +424,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       label: const Text('Sign Out'),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.textSecondary,
-        side: const BorderSide(color: AppColors.cardBorder),
+        side: BorderSide(color: AppColors.cardBorder),
       ),
     );
   }
@@ -372,7 +470,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               if (onEdit != null)
                 GestureDetector(
                   onTap: onEdit,
-                  child: const Icon(Icons.edit_outlined,
+                  child: Icon(Icons.edit_outlined,
                       size: 16, color: AppColors.textSecondary),
                 ),
             ],

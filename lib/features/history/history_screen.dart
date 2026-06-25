@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -48,7 +49,7 @@ class HistoryScreen extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.history, size: 48, color: AppColors.textSecondary),
+          Icon(Icons.history, size: 48, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             'No assessments yet',
@@ -70,8 +71,10 @@ class HistoryScreen extends StatelessWidget {
   Widget _buildHistoryCard(BuildContext context, Assessment assessment) {
     final dateStr =
         DateFormat('EEEE, d MMM — HH:mm').format(assessment.timestamp);
-    final hasImage = assessment.imagePath != null &&
+    final hasLocalImage = assessment.imagePath != null &&
         File(assessment.imagePath!).existsSync();
+    final hasRemoteImage =
+        assessment.imageUrl != null && assessment.imageUrl!.isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
@@ -83,9 +86,12 @@ class HistoryScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Photo
-          if (hasImage)
+          // Photo — prefer the local file (no network needed), fall back
+          // to the Storage URL once the local temp file is gone.
+          if (hasLocalImage)
             _buildImageHeader(assessment.imagePath!, assessment.riskLevel)
+          else if (hasRemoteImage)
+            _buildRemoteImageHeader(assessment.imageUrl!, assessment.riskLevel)
           else
             _buildNoImagePlaceholder(assessment.riskLevel),
 
@@ -172,11 +178,49 @@ class HistoryScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildRemoteImageHeader(String imageUrl, RiskLevel riskLevel) {
+    return Stack(
+      children: [
+        CachedNetworkImage(
+          imageUrl: imageUrl,
+          width: double.infinity,
+          height: 160,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Container(
+            width: double.infinity,
+            height: 160,
+            color: AppColors.surface,
+            child: const Center(
+              child: CircularProgressIndicator(
+                  color: AppColors.accent, strokeWidth: 2),
+            ),
+          ),
+          errorWidget: (context, url, error) =>
+              _buildNoImagePlaceholder(riskLevel),
+        ),
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.3),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildNoImagePlaceholder(RiskLevel riskLevel) {
     return Container(
       width: double.infinity,
       height: 72,
-      color: AppColors.navyLight,
+      color: AppColors.surface,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

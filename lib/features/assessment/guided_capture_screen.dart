@@ -148,7 +148,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
             ),

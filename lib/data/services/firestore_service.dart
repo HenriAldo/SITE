@@ -110,6 +110,7 @@ class FirestoreService {
         patientMessage: data['patient_message'] ?? '',
         escalate: data['escalate'] ?? false,
         imagePath: data['image_path'],
+        imageUrl: data['image_url'] as String?,
       );
     } catch (_) {
       return null;

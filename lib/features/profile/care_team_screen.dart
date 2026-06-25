@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/patient_profile.dart';
 import '../../data/services/firestore_service.dart';
@@ -122,8 +123,7 @@ class CareTeamScreen extends StatelessWidget {
               icon: Icons.phone_outlined,
               label: 'Phone',
               value: team.phone,
-              onTap: () => _copyToClipboard(context, team.phone),
-              actionLabel: 'Copy',
+              phoneNumber: team.phone,
             ),
           const SizedBox(height: 8),
         ],
@@ -141,7 +141,7 @@ class CareTeamScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.groups_outlined,
+          Icon(Icons.groups_outlined,
               color: AppColors.textSecondary, size: 36),
           const SizedBox(height: 12),
           Text(
@@ -189,8 +189,7 @@ class CareTeamScreen extends StatelessWidget {
             icon: Icons.local_hospital_outlined,
             label: 'Emergency services',
             value: '112',
-            onTap: () => _copyToClipboard(context, '112'),
-            actionLabel: 'Copy',
+            phoneNumber: '112',
           ),
           Text(
             'In a medical emergency always call 112 or go directly to the nearest emergency room.',
@@ -209,8 +208,7 @@ class CareTeamScreen extends StatelessWidget {
     required IconData icon,
     required String label,
     required String value,
-    VoidCallback? onTap,
-    String? actionLabel,
+    String? phoneNumber,
   }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
@@ -226,31 +224,46 @@ class CareTeamScreen extends StatelessWidget {
                 Text(label,
                     style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
+                if (phoneNumber != null)
+                  GestureDetector(
+                    onTap: () => _call(context, phoneNumber),
+                    onLongPress: () => _copyToClipboard(context, phoneNumber),
+                    child: Text(
+                      value,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  )
+                else
+                  Text(
+                    value,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
               ],
             ),
           ),
-          if (onTap != null && actionLabel != null)
-            TextButton(
-              onPressed: onTap,
-              style: TextButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  padding: EdgeInsets.zero),
-              child: Text(actionLabel,
-                  style: const TextStyle(fontSize: 13)),
-            ),
         ],
       ),
     );
   }
 
+  Future<void> _call(BuildContext context, String phoneNumber) async {
+    final uri = Uri(scheme: 'tel', path: phoneNumber);
+    final launched = await launchUrl(uri);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the phone dialer.')),
+      );
+    }
+  }
+
   void _copyToClipboard(BuildContext context, String text) {
+    HapticFeedback.mediumImpact();
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

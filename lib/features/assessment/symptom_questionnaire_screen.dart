@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
@@ -265,7 +266,7 @@ class _SymptomQuestionnaireScreenState
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
@@ -277,7 +278,7 @@ class _SymptomQuestionnaireScreenState
               value: value,
               onChanged: (v) => onChanged(v ?? false),
               activeColor: AppColors.accent,
-              side: const BorderSide(color: AppColors.textSecondary),
+              side: BorderSide(color: AppColors.textSecondary),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(4),
               ),
@@ -323,62 +324,69 @@ class _SymptomQuestionnaireScreenState
           );
 
     try {
-      debugPrint('── Step 1: Starting AI analysis ─────────');
+      if (kDebugMode) debugPrint('── Step 1: Starting AI analysis ─────────');
       final assessment = await AiService().analyzeImage(
         imageFile: widget.image,
         profile: profile,
         symptoms: symptoms,
       );
-      debugPrint('── Step 1 done: risk=${assessment.riskLevel.name} escalate=${assessment.escalate}');
+      if (kDebugMode) {
+        debugPrint('── Step 1 done: risk=${assessment.riskLevel.name} escalate=${assessment.escalate}');
+      }
 
       final userId = FirebaseAuth.instance.currentUser?.uid;
       Assessment assessmentWithUrl = assessment;
 
       // Upload image to Firebase Storage (with 30s timeout)
       if (userId != null) {
-        debugPrint('── Step 2: Uploading image to Storage ───');
+        if (kDebugMode) debugPrint('── Step 2: Uploading image to Storage ───');
         try {
           final imageUrl = await FirestoreService()
               .uploadAssessmentImage(userId, assessment.id, widget.image)
               .timeout(const Duration(seconds: 10));
           assessmentWithUrl = assessment.copyWith(imageUrl: imageUrl);
-          debugPrint('── Step 2 done: imageUrl=$imageUrl');
+          if (kDebugMode) debugPrint('── Step 2 done');
         } catch (uploadError) {
-          // Storage upload failed — log it but continue without the image URL
+          // Storage upload failed — continue without the image URL
           // so the assessment result is still shown to the patient
-          debugPrint('── Step 2 FAILED (storage upload): $uploadError');
-          debugPrint('── Continuing without image URL');
+          if (kDebugMode) {
+            debugPrint('── Step 2 FAILED (storage upload): $uploadError');
+            debugPrint('── Continuing without image URL');
+          }
         }
       }
 
       // Save to Firestore
       if (userId != null) {
-        debugPrint('── Step 3: Saving to Firestore ──────────');
+        if (kDebugMode) debugPrint('── Step 3: Saving to Firestore ──────────');
         await FirestoreService().saveAssessment(
           userId,
           assessmentWithUrl,
           patientName: FirebaseAuth.instance.currentUser?.displayName ?? '',
           patientEmail: FirebaseAuth.instance.currentUser?.email ?? '',
         );
-        debugPrint('── Step 3 done');
+        if (kDebugMode) debugPrint('── Step 3 done');
       }
 
-      debugPrint('── Step 4: Navigating to result ─────────');
+      if (kDebugMode) debugPrint('── Step 4: Navigating to result ─────────');
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => ResultScreen(assessment: assessmentWithUrl)),
       );
     } catch (e, stack) {
-      debugPrint('── Assessment error ─────────────────────');
-      debugPrint('$e');
-      debugPrint('$stack');
-      debugPrint('─────────────────────────────────────────');
+      if (kDebugMode) {
+        debugPrint('── Assessment error ─────────────────────');
+        debugPrint('$e');
+        debugPrint('$stack');
+        debugPrint('─────────────────────────────────────────');
+      }
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error analysing image: $e'),
+        const SnackBar(
+          content: Text(
+              'We could not analyse your photo. Please check your connection and try again.'),
           backgroundColor: AppColors.riskHigh,
         ),
       );

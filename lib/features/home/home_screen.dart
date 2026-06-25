@@ -91,7 +91,7 @@ class HomeScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.cardBorder),
             ),
-            child: const Icon(Icons.person_outline, color: AppColors.textSecondary),
+            child: Icon(Icons.person_outline, color: AppColors.textSecondary),
           ),
         ),
           ],
@@ -101,6 +101,28 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildCheckInCard(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return _buildCheckInDueCard(context);
+
+    return StreamBuilder<List<Assessment>>(
+      stream: FirestoreService().assessmentStream(userId),
+      builder: (context, snapshot) {
+        final assessments = snapshot.data ?? [];
+        final checkedInToday =
+            assessments.isNotEmpty && _isToday(assessments.first.timestamp);
+        return checkedInToday
+            ? _buildCheckedInTodayCard(context)
+            : _buildCheckInDueCard(context);
+      },
+    );
+  }
+
+  bool _isToday(DateTime dt) {
+    final now = DateTime.now();
+    return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  }
+
+  Widget _buildCheckInDueCard(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -167,6 +189,40 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildCheckedInTodayCard(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.riskLowBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.riskLow.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle, color: AppColors.riskLow, size: 28),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Today's check-in complete",
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Come back tomorrow for your next check-in.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLastAssessmentCard(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return const SizedBox.shrink();
@@ -195,7 +251,7 @@ class HomeScreen extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.history_outlined,
+                Icon(Icons.history_outlined,
                     size: 20, color: AppColors.textSecondary),
                 const SizedBox(width: 12),
                 Expanded(

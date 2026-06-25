@@ -92,10 +92,12 @@ If the insertion point is not visible: central_line_detected=false, risk_level="
       body: jsonEncode(requestBody),
     );
 
-    // Always log the raw response body first so we can debug any issue
-    debugPrint('── Gemini raw body ──────────────────────');
-    debugPrint(response.body);
-    debugPrint('─────────────────────────────────────────');
+    // Contains patient findings/reasoning — never log outside debug builds
+    if (kDebugMode) {
+      debugPrint('── Gemini raw body ──────────────────────');
+      debugPrint(response.body);
+      debugPrint('─────────────────────────────────────────');
+    }
 
     if (response.statusCode != 200) {
       final error = jsonDecode(response.body);
@@ -124,9 +126,11 @@ If the insertion point is not visible: central_line_detected=false, risk_level="
     final text =
         candidates[0]['content']['parts'][0]['text'] as String;
 
-    debugPrint('── Gemini parsed text ───────────────────');
-    debugPrint(text);
-    debugPrint('─────────────────────────────────────────');
+    if (kDebugMode) {
+      debugPrint('── Gemini parsed text ───────────────────');
+      debugPrint(text);
+      debugPrint('─────────────────────────────────────────');
+    }
 
     // Strip any accidental markdown code fences
     final cleaned = text

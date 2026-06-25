@@ -169,7 +169,7 @@ class _FaqTileState extends State<_FaqTile>
                       width: 24,
                       height: 24,
                       decoration: BoxDecoration(
-                        color: AppColors.navyLight,
+                        color: AppColors.surface,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
                             color: AppColors.accentDark.withOpacity(0.3)),

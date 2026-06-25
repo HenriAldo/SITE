@@ -83,7 +83,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
   Widget _buildFilterBar() {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.divider)),
       ),
       child: Row(
@@ -134,7 +134,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.people_outline,
+          Icon(Icons.people_outline,
               size: 48, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
@@ -348,14 +348,14 @@ class _PatientsScreenState extends State<PatientsScreen> {
             ? Flexible(
                 child: Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppColors.textSecondary, fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),
               )
             : Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppColors.textSecondary, fontSize: 12),
               ),
       ],
@@ -364,7 +364,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.navy,
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(6),
       ),
       child: content,

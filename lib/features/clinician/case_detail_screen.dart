@@ -113,7 +113,6 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
   }
 
   Widget _buildImageCard(BuildContext context) {
-    debugPrint('── imageUrl: ${widget.flaggedCase.imageUrl}');
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: CachedNetworkImage(
@@ -129,7 +128,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           ),
         ),
         errorWidget: (context, url, error) {
-          debugPrint('── image load error: $error');
+          if (kDebugMode) debugPrint('── image load error: $error');
           return Container(
             height: 260,
             decoration: BoxDecoration(
@@ -137,13 +136,13 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.cardBorder),
             ),
-            child: const Center(
+            child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.broken_image_outlined,
                       color: AppColors.textSecondary, size: 32),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text('Image unavailable',
                       style: TextStyle(color: AppColors.textSecondary)),
                 ],

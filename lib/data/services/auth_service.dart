@@ -33,7 +33,15 @@ class AuthService {
       credential.user!.uid,
       email.trim(),
     );
+    // Best-effort — registration should still succeed if this fails
+    try {
+      await credential.user?.sendEmailVerification();
+    } catch (_) {}
     return credential;
+  }
+
+  Future<void> sendPasswordReset(String email) async {
+    await _auth.sendPasswordResetEmail(email: email.trim());
   }
 
   Future<void> signOut() async {
@@ -43,10 +51,12 @@ class AuthService {
   // Human-readable error messages
   static String errorMessage(FirebaseAuthException e) {
     switch (e.code) {
+      // Deliberately the same message for all three — distinguishing them
+      // lets an attacker enumerate which emails have registered accounts.
       case 'user-not-found':
-        return 'No account found for this email address.';
       case 'wrong-password':
-        return 'Incorrect password. Please try again.';
+      case 'invalid-credential':
+        return 'Incorrect email or password. Please try again.';
       case 'email-already-in-use':
         return 'An account with this email already exists.';
       case 'weak-password':

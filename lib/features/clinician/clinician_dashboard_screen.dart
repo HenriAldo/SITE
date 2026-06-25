@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/theme_controller.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../data/models/assessment.dart';
@@ -46,7 +47,7 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
             const Text('SITE — Clinician Dashboard'),
             Text(
               email,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.normal,
@@ -55,6 +56,19 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
           ],
         ),
         actions: [
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: ThemeController.instance,
+            builder: (context, mode, _) {
+              final isDark = mode != ThemeMode.light;
+              return IconButton(
+                icon: Icon(
+                    isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+                tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                onPressed: () => ThemeController.instance
+                    .setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout_outlined),
             tooltip: 'Sign out',
@@ -94,7 +108,7 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
   Widget _buildFilterBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.divider)),
       ),
       child: Row(
@@ -318,7 +332,7 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
                   ),
                 ],
                 const Spacer(),
-                const Icon(Icons.chevron_right,
+                Icon(Icons.chevron_right,
                     size: 18, color: AppColors.textSecondary),
               ],
             ),
