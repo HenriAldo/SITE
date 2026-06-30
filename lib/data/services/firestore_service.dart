@@ -218,10 +218,11 @@ class FirestoreService {
   }
 
   Stream<List<FlaggedCase>> flaggedCasesForUser(String userId) {
+    // No orderBy — avoids requiring a composite index on (user_id, timestamp).
+    // The caller only needs a by-id lookup map so order doesn't matter.
     return _db
         .collection('flagged_cases')
         .where('user_id', isEqualTo: userId)
-        .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snap) => snap.docs
             .map(_flaggedCaseFromDoc)

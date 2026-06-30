@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
@@ -36,6 +37,11 @@ class HistoryScreen extends StatelessWidget {
                 return StreamBuilder<List<FlaggedCase>>(
                   stream: FirestoreService().flaggedCasesForUser(userId),
                   builder: (context, flagSnap) {
+                    // On error, log and fall back to empty map (cards show
+                    // "Awaiting review" rather than crashing).
+                    if (flagSnap.hasError) {
+                      debugPrint('flaggedCasesForUser error: ${flagSnap.error}');
+                    }
                     final flaggedById = {
                       for (final f in flagSnap.data ?? []) f.id: f,
                     };
