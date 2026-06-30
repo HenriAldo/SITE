@@ -60,6 +60,7 @@ class FirestoreService {
     Assessment assessment, {
     String? patientName,
     String? patientEmail,
+    int? patientAge,
   }) async {
     final batch = _db.batch();
 
@@ -76,6 +77,7 @@ class FirestoreService {
         'user_id': userId,
         'patient_name': patientName ?? 'Unknown Patient',
         'patient_email': patientEmail ?? '',
+        'patient_age': patientAge,
         'image_url': assessment.imageUrl,
         'reviewed': false,
         'reviewer_notes': '',
@@ -130,11 +132,17 @@ class FirestoreService {
             .toList());
   }
 
-  Future<void> markReviewed(String caseId, String notes) async {
+  Future<void> markReviewed(
+    String caseId,
+    String notes, {
+    RiskLevel? classification,
+  }) async {
     await _db.collection('flagged_cases').doc(caseId).update({
       'reviewed': true,
       'reviewer_notes': notes,
       'reviewed_at': FieldValue.serverTimestamp(),
+      if (classification != null)
+        'clinician_classification': classification.name,
     });
   }
 
@@ -142,11 +150,13 @@ class FirestoreService {
       QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     try {
       final data = doc.data();
+      final classificationStr = data['clinician_classification'] as String?;
       return FlaggedCase(
         id: data['id'] ?? doc.id,
         userId: data['user_id'] ?? '',
         patientName: data['patient_name'] ?? 'Unknown',
         patientEmail: data['patient_email'] ?? '',
+        patientAge: data['patient_age'] as int?,
         timestamp: DateTime.parse(data['timestamp']).toLocal(),
         riskLevel: RiskLevelExtension.fromString(data['risk_level'] ?? 'low'),
         visualFindings: List<String>.from(data['visual_findings'] ?? []),
@@ -155,6 +165,9 @@ class FirestoreService {
         reviewed: data['reviewed'] ?? false,
         reviewerNotes: data['reviewer_notes'] ?? '',
         imageUrl: data['image_url'] as String?,
+        clinicianClassification: classificationStr != null
+            ? RiskLevelExtension.fromString(classificationStr)
+            : null,
       );
     } catch (_) {
       return null;
@@ -273,6 +286,7 @@ class FlaggedCase {
   final String userId;
   final String patientName;
   final String patientEmail;
+  final int? patientAge;
   final DateTime timestamp;
   final RiskLevel riskLevel;
   final List<String> visualFindings;
@@ -281,12 +295,14 @@ class FlaggedCase {
   final bool reviewed;
   final String reviewerNotes;
   final String? imageUrl;
+  final RiskLevel? clinicianClassification;
 
   const FlaggedCase({
     required this.id,
     required this.userId,
     required this.patientName,
     required this.patientEmail,
+    this.patientAge,
     required this.timestamp,
     required this.riskLevel,
     required this.visualFindings,
@@ -295,6 +311,7 @@ class FlaggedCase {
     required this.reviewed,
     required this.reviewerNotes,
     this.imageUrl,
+    this.clinicianClassification,
   });
 }
 

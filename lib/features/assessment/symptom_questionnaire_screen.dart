@@ -364,6 +364,7 @@ class _SymptomQuestionnaireScreenState
           assessmentWithUrl,
           patientName: FirebaseAuth.instance.currentUser?.displayName ?? '',
           patientEmail: FirebaseAuth.instance.currentUser?.email ?? '',
+          patientAge: profile.age > 0 ? profile.age : null,
         );
         if (kDebugMode) debugPrint('── Step 3 done');
       }

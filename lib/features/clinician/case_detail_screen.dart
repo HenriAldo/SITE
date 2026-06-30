@@ -20,12 +20,15 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
   final _notesController = TextEditingController();
   bool _isSaving = false;
   late bool _reviewed;
+  late RiskLevel _classification;
 
   @override
   void initState() {
     super.initState();
     _reviewed = widget.flaggedCase.reviewed;
     _notesController.text = widget.flaggedCase.reviewerNotes;
+    _classification = widget.flaggedCase.clinicianClassification ??
+        widget.flaggedCase.riskLevel;
   }
 
   @override
@@ -52,32 +55,95 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
             ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildPatientHeader(context, dateStr),
-            const SizedBox(height: 24),
-            if (widget.flaggedCase.imageUrl != null)
-              _buildImageCard(context),
-            if (widget.flaggedCase.imageUrl != null)
-              const SizedBox(height: 20),
-            _buildRiskCard(context),
-            const SizedBox(height: 20),
-            _buildFindingsCard(context),
-            const SizedBox(height: 20),
-            _buildReasoningCard(context),
-            const SizedBox(height: 20),
-            _buildNotesCard(context),
-            const SizedBox(height: 28),
-            if (!_reviewed) _buildMarkReviewedButton(),
-            if (_reviewed) _buildReviewedBanner(context),
-          ],
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 720;
+
+          if (isWide && widget.flaggedCase.imageUrl != null) {
+            return _buildWideLayout(context, dateStr);
+          }
+          return _buildNarrowLayout(context, dateStr);
+        },
       ),
     );
   }
+
+  // ── Wide layout (web / tablet): info left, image right ───────
+
+  Widget _buildWideLayout(BuildContext context, String dateStr) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Left: scrollable info column
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPatientHeader(context, dateStr),
+                const SizedBox(height: 24),
+                _buildRiskCard(context),
+                const SizedBox(height: 20),
+                _buildFindingsCard(context),
+                const SizedBox(height: 20),
+                _buildReasoningCard(context),
+                const SizedBox(height: 20),
+                _buildClassifyRow(context),
+                const SizedBox(height: 20),
+                _buildNotesCard(context),
+                const SizedBox(height: 28),
+                if (!_reviewed) _buildMarkReviewedButton(),
+                if (_reviewed) _buildReviewedBanner(context),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+        // Right: sticky image pane
+        Container(
+          width: 400,
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: AppColors.divider)),
+          ),
+          child: _buildImagePane(context, sticky: true),
+        ),
+      ],
+    );
+  }
+
+  // ── Narrow layout (phone): stacked ───────────────────────────
+
+  Widget _buildNarrowLayout(BuildContext context, String dateStr) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildPatientHeader(context, dateStr),
+          const SizedBox(height: 24),
+          if (widget.flaggedCase.imageUrl != null) ...[
+            _buildImagePane(context, sticky: false),
+            const SizedBox(height: 20),
+          ],
+          _buildRiskCard(context),
+          const SizedBox(height: 20),
+          _buildFindingsCard(context),
+          const SizedBox(height: 20),
+          _buildReasoningCard(context),
+          const SizedBox(height: 20),
+          _buildClassifyRow(context),
+          const SizedBox(height: 20),
+          _buildNotesCard(context),
+          const SizedBox(height: 28),
+          if (!_reviewed) _buildMarkReviewedButton(),
+          if (_reviewed) _buildReviewedBanner(context),
+        ],
+      ),
+    );
+  }
+
+  // ── Shared widgets ────────────────────────────────────────────
 
   Widget _buildPatientHeader(BuildContext context, String dateStr) {
     return Row(
@@ -97,9 +163,24 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                widget.flaggedCase.patientName,
-                style: Theme.of(context).textTheme.titleLarge,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.flaggedCase.patientName,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  if (widget.flaggedCase.patientAge != null &&
+                      widget.flaggedCase.patientAge! > 0)
+                    Text(
+                      '${widget.flaggedCase.patientAge} y',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: AppColors.textSecondary),
+                    ),
+                ],
               ),
               Text(
                 dateStr,
@@ -112,44 +193,104 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
     );
   }
 
-  Widget _buildImageCard(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: CachedNetworkImage(
-        imageUrl: widget.flaggedCase.imageUrl!,
-        width: double.infinity,
-        height: 260,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => Container(
-          height: 260,
-          color: AppColors.surface,
-          child: const Center(
-            child: CircularProgressIndicator(color: AppColors.accent),
-          ),
-        ),
-        errorWidget: (context, url, error) {
-          if (kDebugMode) debugPrint('── image load error: $error');
-          return Container(
-            height: 260,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.cardBorder),
+  // The image pane — used in both layouts.
+  // In sticky=true (wide layout) it fills the available height and is not scrollable.
+  Widget _buildImagePane(BuildContext context, {required bool sticky}) {
+    final imageWidget = widget.flaggedCase.imageUrl != null
+        ? GestureDetector(
+            onTap: () => _openFullScreenImage(context),
+            child: Hero(
+              tag: 'case-image-${widget.flaggedCase.id}',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(sticky ? 0 : 14),
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 5,
+                  child: CachedNetworkImage(
+                    imageUrl: widget.flaggedCase.imageUrl!,
+                    fit: BoxFit.contain,
+                    placeholder: (context, url) => Container(
+                      color: AppColors.surface,
+                      child: const Center(
+                        child: CircularProgressIndicator(color: AppColors.accent),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) {
+                      if (kDebugMode) debugPrint('── image load error: $error');
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          border: Border.all(color: AppColors.cardBorder),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image_outlined,
+                                  color: AppColors.textSecondary, size: 32),
+                              const SizedBox(height: 8),
+                              Text('Image unavailable',
+                                  style: TextStyle(
+                                      color: AppColors.textSecondary)),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.broken_image_outlined,
-                      color: AppColors.textSecondary, size: 32),
-                  const SizedBox(height: 8),
-                  Text('Image unavailable',
-                      style: TextStyle(color: AppColors.textSecondary)),
+          )
+        : const SizedBox.shrink();
+
+    if (sticky) {
+      return Stack(
+        children: [
+          Positioned.fill(child: imageWidget),
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.zoom_in, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text('Tap to zoom',
+                      style: TextStyle(color: Colors.white, fontSize: 11)),
                 ],
               ),
             ),
-          );
-        },
+          ),
+        ],
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: imageWidget,
+      ),
+    );
+  }
+
+  void _openFullScreenImage(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _FullScreenImageViewer(
+          imageUrl: widget.flaggedCase.imageUrl!,
+          caseId: widget.flaggedCase.id,
+        ),
       ),
     );
   }
@@ -237,6 +378,70 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
             .textTheme
             .bodyMedium
             ?.copyWith(color: AppColors.textPrimary, height: 1.6),
+      ),
+    );
+  }
+
+  Widget _buildClassifyRow(BuildContext context) {
+    const levels = [RiskLevel.low, RiskLevel.moderate, RiskLevel.high];
+
+    return _sectionCard(
+      context,
+      title: 'Clinician Classification',
+      icon: Icons.tune_outlined,
+      child: Row(
+        children: levels.map((level) {
+          final selected = _classification == level;
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                right: level != levels.last ? 8 : 0,
+              ),
+              child: GestureDetector(
+                onTap: _reviewed
+                    ? null
+                    : () => setState(() => _classification = level),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? level.backgroundColor
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected
+                          ? level.color
+                          : AppColors.cardBorder,
+                      width: selected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(level.icon,
+                          size: 14,
+                          color: selected
+                              ? level.color
+                              : AppColors.textSecondary),
+                      const SizedBox(width: 6),
+                      Text(
+                        level.label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: selected
+                              ? level.color
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -347,9 +552,11 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
       await FirestoreService().markReviewed(
         widget.flaggedCase.id,
         _notesController.text.trim(),
+        classification: _classification,
       );
-      setState(() => _reviewed = true);
       if (mounted) {
+        // Pop back to the dashboard first, then show the snackbar there
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Case marked as reviewed'),
@@ -365,9 +572,52 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
             backgroundColor: AppColors.riskHigh,
           ),
         );
+        setState(() => _isSaving = false);
       }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
     }
+  }
+}
+
+// ── Full-screen image viewer ──────────────────────────────────
+
+class _FullScreenImageViewer extends StatelessWidget {
+  final String imageUrl;
+  final String caseId;
+
+  const _FullScreenImageViewer({
+    required this.imageUrl,
+    required this.caseId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Image', style: TextStyle(color: Colors.white)),
+      ),
+      body: Center(
+        child: Hero(
+          tag: 'case-image-$caseId',
+          child: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 8,
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.contain,
+              placeholder: (context, url) => const Center(
+                child: CircularProgressIndicator(color: AppColors.accent),
+              ),
+              errorWidget: (context, url, error) => const Center(
+                child: Icon(Icons.broken_image_outlined,
+                    color: Colors.white54, size: 48),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

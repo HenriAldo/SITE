@@ -14,25 +14,53 @@ class PatientsScreen extends StatefulWidget {
 class _PatientsScreenState extends State<PatientsScreen> {
   late Future<List<PatientSummary>> _patientsFuture;
   bool _showMyOnly = true;
+  String? _assigningUserId;
   String get _clinicianId => FirebaseAuth.instance.currentUser!.uid;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _patientsFuture = _fetchPatients();
   }
 
-  void _load() {
+  Future<List<PatientSummary>> _fetchPatients() => _showMyOnly
+      ? FirestoreService().getMyPatients(_clinicianId)
+      : FirestoreService().getPatients();
+
+  Future<void> _load() async {
     setState(() {
-      _patientsFuture = _showMyOnly
-          ? FirestoreService().getMyPatients(_clinicianId)
-          : FirestoreService().getPatients();
+      _patientsFuture = _fetchPatients();
     });
+    // Await so that RefreshIndicator spins until data lands
+    await _patientsFuture;
   }
 
   Future<void> _assign(PatientSummary patient) async {
-    await FirestoreService().assignPatientToClinician(patient.userId, _clinicianId);
-    if (mounted) _load();
+    setState(() => _assigningUserId = patient.userId);
+    try {
+      await FirestoreService()
+          .assignPatientToClinician(patient.userId, _clinicianId);
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${patient.name} assigned to you'),
+            backgroundColor: AppColors.riskLow,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.riskHigh,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _assigningUserId = null);
+    }
   }
 
   @override
@@ -40,13 +68,6 @@ class _PatientsScreenState extends State<PatientsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patients'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_outlined),
-            tooltip: 'Refresh',
-            onPressed: _load,
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: _buildFilterBar(),
@@ -65,16 +86,20 @@ class _PatientsScreenState extends State<PatientsScreen> {
           }
 
           final patients = snapshot.data ?? [];
-          if (patients.isEmpty) {
-            return _buildEmpty(context);
-          }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(24),
-            itemCount: patients.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, i) =>
-                _buildPatientCard(context, patients[i]),
+          return RefreshIndicator(
+            onRefresh: _load,
+            color: AppColors.accent,
+            child: patients.isEmpty
+                ? _buildEmpty(context)
+                : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(24),
+                    itemCount: patients.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, i) =>
+                        _buildPatientCard(context, patients[i]),
+                  ),
           );
         },
       ),
@@ -130,30 +155,37 @@ class _PatientsScreenState extends State<PatientsScreen> {
   }
 
   Widget _buildEmpty(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people_outline,
-              size: 48, color: AppColors.textSecondary),
-          const SizedBox(height: 16),
-          Text(
-            _showMyOnly
-                ? 'No patients assigned to you'
-                : 'No patients registered yet',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+    // Wrap in scrollable so pull-to-refresh works on an empty list
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.people_outline,
+                  size: 48, color: AppColors.textSecondary),
+              const SizedBox(height: 16),
+              Text(
+                _showMyOnly
+                    ? 'No patients assigned to you'
+                    : 'No patients registered yet',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _showMyOnly
+                    ? 'Switch to "All Patients" to find and assign patients to yourself.'
+                    : 'Patients appear here once they register\nand log in to the app.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            _showMyOnly
-                ? 'Switch to "All Patients" to find and assign patients to yourself.'
-                : 'Patients appear here once they register\nand log in to the app.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -168,6 +200,10 @@ class _PatientsScreenState extends State<PatientsScreen> {
     final isMyPatient = patient.clinicianId == _clinicianId;
     final isAssignedElsewhere =
         patient.clinicianId != null && !isMyPatient;
+    final isAssigning = _assigningUserId == patient.userId;
+
+    final age = profile?.age;
+    final hasAge = age != null && age > 0;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -204,10 +240,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
                       patient.name,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    if (patient.displayName.isNotEmpty &&
-                        patient.email.isNotEmpty)
+                    if (hasAge)
                       Text(
-                        patient.email,
+                        '$age y',
                         style: Theme.of(context)
                             .textTheme
                             .bodyMedium
@@ -279,8 +314,17 @@ class _PatientsScreenState extends State<PatientsScreen> {
               if (!isMyPatient) ...[
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
-                  onPressed: isAssignedElsewhere ? null : () => _assign(patient),
-                  icon: const Icon(Icons.link, size: 16),
+                  onPressed: (isAssignedElsewhere || isAssigning)
+                      ? null
+                      : () => _assign(patient),
+                  icon: isAssigning
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppColors.accent),
+                        )
+                      : const Icon(Icons.link, size: 16),
                   label: const Text('Assign to me'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.accent,

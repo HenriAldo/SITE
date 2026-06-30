@@ -97,82 +97,6 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
   }
 
   Widget _buildFlaggedTab() {
-    return Column(
-      children: [
-        _buildFilterBar(),
-        Expanded(child: _buildCaseList()),
-      ],
-    );
-  }
-
-  Widget _buildFilterBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
-      ),
-      child: Row(
-        children: [
-          _buildStatChip(),
-          const Spacer(),
-          Row(
-            children: [
-              Text(
-                'Show reviewed',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(fontSize: 13),
-              ),
-              const SizedBox(width: 8),
-              Switch(
-                value: _showReviewed,
-                onChanged: (v) => setState(() => _showReviewed = v),
-                activeColor: AppColors.accent,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatChip() {
-    return StreamBuilder<List<FlaggedCase>>(
-      stream: FirestoreService().flaggedCasesStream(),
-      builder: (context, snap) {
-        final pending =
-            (snap.data ?? []).where((c) => !c.reviewed).length;
-        return Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: pending > 0
-                ? AppColors.riskModerateBg
-                : AppColors.riskLowBg,
-            borderRadius: BorderRadius.circular(100),
-            border: Border.all(
-              color: pending > 0
-                  ? AppColors.riskModerate.withOpacity(0.4)
-                  : AppColors.riskLow.withOpacity(0.4),
-            ),
-          ),
-          child: Text(
-            '$pending pending review',
-            style: TextStyle(
-              color: pending > 0
-                  ? AppColors.riskModerate
-                  : AppColors.riskLow,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCaseList() {
     return StreamBuilder<List<FlaggedCase>>(
       stream: FirestoreService().flaggedCasesStream(),
       builder: (context, snapshot) {
@@ -186,21 +110,112 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
         }
 
         final all = snapshot.data ?? [];
+        final hasReviewed = all.any((c) => c.reviewed);
+
+        // If the toggle was on but all reviewed cases vanished, reset it
+        if (!hasReviewed && _showReviewed) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _showReviewed = false);
+          });
+        }
+
         final cases = _showReviewed
             ? all
             : all.where((c) => !c.reviewed).toList();
 
-        if (cases.isEmpty) {
-          return _buildEmptyState();
-        }
+        // Sort: high → moderate → low → undetected, then newest first
+        final riskOrder = {
+          RiskLevel.high: 0,
+          RiskLevel.moderate: 1,
+          RiskLevel.low: 2,
+          RiskLevel.undetected: 3,
+        };
+        cases.sort((a, b) {
+          final riskCmp =
+              (riskOrder[a.riskLevel] ?? 3).compareTo(riskOrder[b.riskLevel] ?? 3);
+          if (riskCmp != 0) return riskCmp;
+          return b.timestamp.compareTo(a.timestamp);
+        });
 
-        return ListView.separated(
-          padding: const EdgeInsets.all(24),
-          itemCount: cases.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, i) => _buildCaseCard(context, cases[i]),
+        return Column(
+          children: [
+            _buildFilterBar(all, hasReviewed),
+            Expanded(
+              child: cases.isEmpty
+                  ? _buildEmptyState()
+                  : ListView.separated(
+                      padding: const EdgeInsets.all(24),
+                      itemCount: cases.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, i) =>
+                          _buildCaseCard(context, cases[i]),
+                    ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildFilterBar(List<FlaggedCase> all, bool hasReviewed) {
+    final pending = all.where((c) => !c.reviewed).length;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: Row(
+        children: [
+          _buildStatChip(pending),
+          const Spacer(),
+          if (hasReviewed)
+            Row(
+              children: [
+                Text(
+                  'Show reviewed',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontSize: 13),
+                ),
+                const SizedBox(width: 8),
+                Switch(
+                  value: _showReviewed,
+                  onChanged: (v) => setState(() => _showReviewed = v),
+                  activeColor: AppColors.accent,
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatChip(int pending) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: pending > 0
+            ? AppColors.riskModerateBg
+            : AppColors.riskLowBg,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(
+          color: pending > 0
+              ? AppColors.riskModerate.withOpacity(0.4)
+              : AppColors.riskLow.withOpacity(0.4),
+        ),
+      ),
+      child: Text(
+        '$pending pending review',
+        style: TextStyle(
+          color: pending > 0
+              ? AppColors.riskModerate
+              : AppColors.riskLow,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -264,14 +279,17 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
                         flaggedCase.patientName,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        flaggedCase.patientEmail,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontSize: 12),
-                      ),
+                      if (flaggedCase.patientAge != null &&
+                          flaggedCase.patientAge! > 0) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${flaggedCase.patientAge} y',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontSize: 12),
+                        ),
+                      ],
                     ],
                   ),
                 ),
