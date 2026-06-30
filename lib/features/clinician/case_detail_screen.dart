@@ -88,6 +88,10 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                 _buildFindingsCard(context),
                 const SizedBox(height: 20),
                 _buildReasoningCard(context),
+                if (widget.flaggedCase.symptoms != null) ...[
+                  const SizedBox(height: 20),
+                  _buildSymptomsCard(context),
+                ],
                 const SizedBox(height: 20),
                 _buildClassifyRow(context),
                 const SizedBox(height: 20),
@@ -131,6 +135,10 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           _buildFindingsCard(context),
           const SizedBox(height: 20),
           _buildReasoningCard(context),
+          if (widget.flaggedCase.symptoms != null) ...[
+            const SizedBox(height: 20),
+            _buildSymptomsCard(context),
+          ],
           const SizedBox(height: 20),
           _buildClassifyRow(context),
           const SizedBox(height: 20),
@@ -442,6 +450,62 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildSymptomsCard(BuildContext context) {
+    final s = widget.flaggedCase.symptoms!;
+    final reported = [
+      if (s.hasFever) 'Fever',
+      if (s.hasChills) 'Chills or shivering',
+      if (s.hasPain) 'Pain at catheter site',
+      if (s.hasRedness) 'Redness',
+      if (s.hasSwelling) 'Swelling',
+      if (s.hasDrainage) 'Discharge or leaking',
+    ];
+
+    return _sectionCard(
+      context,
+      title: 'Patient-Reported Symptoms',
+      icon: Icons.monitor_heart_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!s.hasSymptoms)
+            Text('Patient reported no symptoms.',
+                style: Theme.of(context).textTheme.bodyMedium)
+          else if (reported.isEmpty)
+            Text('Symptoms present — none selected.',
+                style: Theme.of(context).textTheme.bodyMedium)
+          else
+            ...reported.map(
+              (label) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                        radius: 3, backgroundColor: AppColors.accent),
+                    const SizedBox(width: 8),
+                    Text(label,
+                        style: Theme.of(context).textTheme.bodyMedium),
+                  ],
+                ),
+              ),
+            ),
+          if (s.additionalNotes != null && s.additionalNotes!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Text(
+              '"${s.additionalNotes}"',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontStyle: FontStyle.italic),
+            ),
+          ],
+        ],
       ),
     );
   }

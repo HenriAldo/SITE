@@ -50,16 +50,20 @@ service cloud.firestore {
     }
 
     match /flagged_cases/{caseId} {
-      allow read: if isClinician();
+      // Clinicians see every flagged case; patients may read their own
+      // so the app can show the clinician's review and reclassification.
+      allow read: if isClinician() ||
+        (isSignedIn() && resource.data.user_id == request.auth.uid);
 
       // Written by FirestoreService.saveAssessment as part of the
       // patient's own escalation batch.
       allow create: if isSignedIn() && request.resource.data.user_id == request.auth.uid;
 
-      // Clinicians may only mark a case reviewed and add notes.
+      // Clinicians may only mark a case reviewed, add notes, and set a
+      // classification.
       allow update: if isClinician() &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['reviewed', 'reviewer_notes', 'reviewed_at']);
+          .hasOnly(['reviewed', 'reviewer_notes', 'reviewed_at', 'clinician_classification']);
 
       allow delete: if false;
     }

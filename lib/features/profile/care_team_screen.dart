@@ -187,12 +187,12 @@ class CareTeamScreen extends StatelessWidget {
           _contactRow(
             context,
             icon: Icons.local_hospital_outlined,
-            label: 'Emergency services',
-            value: '112',
-            phoneNumber: '112',
+            label: 'Patient service',
+            value: '116117',
+            phoneNumber: '116117',
           ),
           Text(
-            'In a medical emergency always call 112 or go directly to the nearest emergency room.',
+            'In a medical emergency call 116117 or go directly to the nearest emergency room.',
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium

@@ -314,13 +314,24 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     // Save to target patient if set (clinician editing), otherwise own profile
     final userId = widget.targetUserId ??
         FirebaseAuth.instance.currentUser?.uid;
-    if (userId != null) {
-      await FirestoreService().saveProfile(userId, profile);
-    }
-
-    if (mounted) {
-      setState(() => _isSaving = false);
-      Navigator.pop(context, true); // return true = saved
+    try {
+      if (userId != null) {
+        await FirestoreService().saveProfile(userId, profile);
+      }
+      if (mounted) {
+        setState(() => _isSaving = false);
+        Navigator.pop(context, true); // return true = saved
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not save profile: $e'),
+            backgroundColor: AppColors.riskHigh,
+          ),
+        );
+      }
     }
   }
 }

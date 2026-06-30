@@ -91,24 +91,9 @@ class _LoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
+    return const Scaffold(
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset(
-                'assets/images/Logo.png',
-                width: 96,
-                height: 96,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(color: AppColors.accent),
-          ],
-        ),
+        child: CircularProgressIndicator(color: AppColors.accent),
       ),
     );
   }

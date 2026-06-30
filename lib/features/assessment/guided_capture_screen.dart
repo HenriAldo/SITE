@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/widgets/check_in_step_indicator.dart';
 import 'symptom_questionnaire_screen.dart';
 
 class GuidedCaptureScreen extends StatefulWidget {
@@ -56,67 +57,9 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
   }
 
   Widget _buildStepIndicator() {
-    return Row(
-      children: [
-        _buildStep(1, 'Photo', isActive: true, isCompleted: _capturedImage != null),
-        _buildStepLine(),
-        _buildStep(2, 'Symptoms', isActive: false),
-        _buildStepLine(),
-        _buildStep(3, 'Result', isActive: false),
-      ],
-    );
-  }
-
-  Widget _buildStep(int number, String label, {bool isActive = false, bool isCompleted = false}) {
-    return Column(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: isCompleted
-                ? AppColors.accent
-                : isActive
-                    ? AppColors.accent.withOpacity(0.2)
-                    : AppColors.surface,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: isActive || isCompleted ? AppColors.accent : AppColors.cardBorder,
-            ),
-          ),
-          child: Center(
-            child: isCompleted
-                ? const Icon(Icons.check, size: 16, color: Colors.white)
-                : Text(
-                    '$number',
-                    style: TextStyle(
-                      color: isActive ? AppColors.accent : AppColors.textSecondary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: isActive ? AppColors.accent : AppColors.textSecondary,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStepLine() {
-    return Expanded(
-      child: Container(
-        height: 1,
-        margin: const EdgeInsets.only(bottom: 20, left: 4, right: 4),
-        color: AppColors.divider,
-      ),
+    return CheckInStepIndicator(
+      currentStep: 1,
+      photoDone: _capturedImage != null,
     );
   }
 

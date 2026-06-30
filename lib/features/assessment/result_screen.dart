@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
+import '../../shared/widgets/check_in_step_indicator.dart';
 import '../../shared/widgets/risk_badge.dart';
 import '../profile/care_team_screen.dart';
 
@@ -23,6 +24,9 @@ class ResultScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const CheckInStepIndicator(
+                  currentStep: 3, photoDone: true),
+              const SizedBox(height: 24),
               _buildRiskHeader(context),
               const SizedBox(height: 24),
               _buildPatientMessage(context),
@@ -240,13 +244,14 @@ class ResultScreen extends StatelessWidget {
     return Column(
       children: [
         if (assessment.riskLevel == RiskLevel.undetected)
+          // "Try Again" already returns home — no need for a second button.
           ElevatedButton.icon(
             onPressed: () =>
                 Navigator.popUntil(context, (route) => route.isFirst),
             icon: const Icon(Icons.camera_alt_outlined, size: 18),
             label: const Text('Try Again'),
           ),
-        if (assessment.riskLevel == RiskLevel.high)
+        if (assessment.riskLevel == RiskLevel.high) ...[
           ElevatedButton.icon(
             onPressed: () => Navigator.push(
               context,
@@ -258,20 +263,20 @@ class ResultScreen extends StatelessWidget {
               backgroundColor: AppColors.riskHigh,
             ),
           ),
-        if (assessment.riskLevel != RiskLevel.high &&
-            assessment.riskLevel != RiskLevel.undetected) ...[
+          const SizedBox(height: 12),
           ElevatedButton(
             onPressed: () =>
                 Navigator.popUntil(context, (route) => route.isFirst),
-            child: const Text('Back to Home'),
+            child: const Text('Done'),
           ),
         ],
-        const SizedBox(height: 10),
-        OutlinedButton(
-          onPressed: () =>
-              Navigator.popUntil(context, (route) => route.isFirst),
-          child: const Text('Done'),
-        ),
+        if (assessment.riskLevel == RiskLevel.low ||
+            assessment.riskLevel == RiskLevel.moderate)
+          ElevatedButton(
+            onPressed: () =>
+                Navigator.popUntil(context, (route) => route.isFirst),
+            child: const Text('Done'),
+          ),
         const SizedBox(height: 16),
         Text(
           'This assessment is for informational purposes only and does not replace clinical judgment.',

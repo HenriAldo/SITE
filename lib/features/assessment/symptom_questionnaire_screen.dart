@@ -1,14 +1,9 @@
 import 'dart:io';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
-import '../../data/models/assessment.dart';
-import '../../data/models/patient_profile.dart';
 import '../../data/models/symptom_response.dart';
-import '../../data/services/ai_service.dart';
-import '../../data/services/firestore_service.dart';
-import 'result_screen.dart';
+import '../../shared/widgets/check_in_step_indicator.dart';
+import 'analyzing_screen.dart';
 
 class SymptomQuestionnaireScreen extends StatefulWidget {
   final File image;
@@ -29,7 +24,13 @@ class _SymptomQuestionnaireScreenState
   bool _hasRedness = false;
   bool _hasDrainage = false;
   bool _hasChills = false;
-  bool _isLoading = false;
+  final _notesController = TextEditingController();
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +45,8 @@ class _SymptomQuestionnaireScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const CheckInStepIndicator(currentStep: 2, photoDone: true),
+                    const SizedBox(height: 28),
                     Text(
                       'How are you feeling?',
                       style: Theme.of(context).textTheme.headlineMedium,
@@ -59,6 +62,8 @@ class _SymptomQuestionnaireScreenState
                       const SizedBox(height: 24),
                       _buildSymptomChecklist(context),
                     ],
+                    const SizedBox(height: 24),
+                    _buildNotesField(context),
                   ],
                 ),
               ),
@@ -67,16 +72,7 @@ class _SymptomQuestionnaireScreenState
               padding: const EdgeInsets.all(24),
               child: ElevatedButton(
                 onPressed: _hasSymptoms == null ? null : _submit,
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Analyse'),
+                child: const Text('Analyse'),
               ),
             ),
           ],
@@ -224,6 +220,41 @@ class _SymptomQuestionnaireScreenState
     );
   }
 
+  Widget _buildNotesField(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Anything else to add?',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _notesController,
+          maxLines: 3,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(
+            hintText: 'Optional — describe anything unusual you noticed…',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.cardBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.cardBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.accent),
+            ),
+            filled: true,
+            fillColor: AppColors.surface,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSymptomTile(
     String label,
     String subtitle,
@@ -289,9 +320,7 @@ class _SymptomQuestionnaireScreenState
     );
   }
 
-  Future<void> _submit() async {
-    setState(() => _isLoading = true);
-
+  void _submit() {
     final symptoms = SymptomResponse(
       hasSymptoms: _hasSymptoms ?? false,
       hasFever: _hasFever,
@@ -300,97 +329,19 @@ class _SymptomQuestionnaireScreenState
       hasRedness: _hasRedness,
       hasSwelling: _hasSwelling,
       hasDrainage: _hasDrainage,
+      additionalNotes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
     );
 
-    // Load real profile from Firestore
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    final profile = userId != null
-        ? await FirestoreService().getProfile(userId) ??
-            PatientProfile(
-              name: FirebaseAuth.instance.currentUser?.displayName ?? '',
-              age: 0,
-              catheterType: 'Unknown',
-              insertionDate: DateTime.now(),
-              diagnosis: 'Not provided',
-              isImmunosuppressed: false,
-            )
-        : PatientProfile(
-            name: '',
-            age: 0,
-            catheterType: 'Unknown',
-            insertionDate: DateTime.now(),
-            diagnosis: 'Not provided',
-            isImmunosuppressed: false,
-          );
-
-    try {
-      if (kDebugMode) debugPrint('── Step 1: Starting AI analysis ─────────');
-      final assessment = await AiService().analyzeImage(
-        imageFile: widget.image,
-        profile: profile,
-        symptoms: symptoms,
-      );
-      if (kDebugMode) {
-        debugPrint('── Step 1 done: risk=${assessment.riskLevel.name} escalate=${assessment.escalate}');
-      }
-
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      Assessment assessmentWithUrl = assessment;
-
-      // Upload image to Firebase Storage (with 30s timeout)
-      if (userId != null) {
-        if (kDebugMode) debugPrint('── Step 2: Uploading image to Storage ───');
-        try {
-          final imageUrl = await FirestoreService()
-              .uploadAssessmentImage(userId, assessment.id, widget.image)
-              .timeout(const Duration(seconds: 10));
-          assessmentWithUrl = assessment.copyWith(imageUrl: imageUrl);
-          if (kDebugMode) debugPrint('── Step 2 done');
-        } catch (uploadError) {
-          // Storage upload failed — continue without the image URL
-          // so the assessment result is still shown to the patient
-          if (kDebugMode) {
-            debugPrint('── Step 2 FAILED (storage upload): $uploadError');
-            debugPrint('── Continuing without image URL');
-          }
-        }
-      }
-
-      // Save to Firestore
-      if (userId != null) {
-        if (kDebugMode) debugPrint('── Step 3: Saving to Firestore ──────────');
-        await FirestoreService().saveAssessment(
-          userId,
-          assessmentWithUrl,
-          patientName: FirebaseAuth.instance.currentUser?.displayName ?? '',
-          patientEmail: FirebaseAuth.instance.currentUser?.email ?? '',
-          patientAge: profile.age > 0 ? profile.age : null,
-        );
-        if (kDebugMode) debugPrint('── Step 3 done');
-      }
-
-      if (kDebugMode) debugPrint('── Step 4: Navigating to result ─────────');
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => ResultScreen(assessment: assessmentWithUrl)),
-      );
-    } catch (e, stack) {
-      if (kDebugMode) {
-        debugPrint('── Assessment error ─────────────────────');
-        debugPrint('$e');
-        debugPrint('$stack');
-        debugPrint('─────────────────────────────────────────');
-      }
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'We could not analyse your photo. Please check your connection and try again.'),
-          backgroundColor: AppColors.riskHigh,
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AnalyzingScreen(
+          image: widget.image,
+          symptoms: symptoms,
         ),
-      );
-    }
+      ),
+    );
   }
 }

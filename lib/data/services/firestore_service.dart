@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import '../models/assessment.dart';
 import '../models/patient_profile.dart';
+import '../models/symptom_response.dart';
 
 
 class FirestoreService {
@@ -102,6 +103,7 @@ class FirestoreService {
       QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     try {
       final data = doc.data();
+      final symptomsData = data['symptoms'] as Map<String, dynamic>?;
       return Assessment(
         id: data['id'] ?? doc.id,
         timestamp: DateTime.parse(data['timestamp']).toLocal(),
@@ -113,6 +115,9 @@ class FirestoreService {
         escalate: data['escalate'] ?? false,
         imagePath: data['image_path'],
         imageUrl: data['image_url'] as String?,
+        symptoms: symptomsData != null
+            ? SymptomResponse.fromJson(symptomsData)
+            : null,
       );
     } catch (_) {
       return null;
@@ -151,6 +156,7 @@ class FirestoreService {
     try {
       final data = doc.data();
       final classificationStr = data['clinician_classification'] as String?;
+      final symptomsData = data['symptoms'] as Map<String, dynamic>?;
       return FlaggedCase(
         id: data['id'] ?? doc.id,
         userId: data['user_id'] ?? '',
@@ -168,10 +174,59 @@ class FirestoreService {
         clinicianClassification: classificationStr != null
             ? RiskLevelExtension.fromString(classificationStr)
             : null,
+        symptoms: symptomsData != null
+            ? SymptomResponse.fromJson(symptomsData)
+            : null,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  Future<FlaggedCase?> getFlaggedCase(String assessmentId) async {
+    final doc =
+        await _db.collection('flagged_cases').doc(assessmentId).get();
+    if (!doc.exists) return null;
+    try {
+      final data = doc.data()!;
+      final classificationStr = data['clinician_classification'] as String?;
+      final symptomsData = data['symptoms'] as Map<String, dynamic>?;
+      return FlaggedCase(
+        id: data['id'] ?? doc.id,
+        userId: data['user_id'] ?? '',
+        patientName: data['patient_name'] ?? 'Unknown',
+        patientEmail: data['patient_email'] ?? '',
+        patientAge: data['patient_age'] as int?,
+        timestamp: DateTime.parse(data['timestamp']).toLocal(),
+        riskLevel: RiskLevelExtension.fromString(data['risk_level'] ?? 'low'),
+        visualFindings: List<String>.from(data['visual_findings'] ?? []),
+        reasoning: data['reasoning'] ?? '',
+        patientMessage: data['patient_message'] ?? '',
+        reviewed: data['reviewed'] ?? false,
+        reviewerNotes: data['reviewer_notes'] ?? '',
+        imageUrl: data['image_url'] as String?,
+        clinicianClassification: classificationStr != null
+            ? RiskLevelExtension.fromString(classificationStr)
+            : null,
+        symptoms: symptomsData != null
+            ? SymptomResponse.fromJson(symptomsData)
+            : null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Stream<List<FlaggedCase>> flaggedCasesForUser(String userId) {
+    return _db
+        .collection('flagged_cases')
+        .where('user_id', isEqualTo: userId)
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map(_flaggedCaseFromDoc)
+            .whereType<FlaggedCase>()
+            .toList());
   }
 
   // ── User Role ─────────────────────────────────────────────────
@@ -296,6 +351,7 @@ class FlaggedCase {
   final String reviewerNotes;
   final String? imageUrl;
   final RiskLevel? clinicianClassification;
+  final SymptomResponse? symptoms;
 
   const FlaggedCase({
     required this.id,
@@ -312,6 +368,7 @@ class FlaggedCase {
     required this.reviewerNotes,
     this.imageUrl,
     this.clinicianClassification,
+    this.symptoms,
   });
 }
 

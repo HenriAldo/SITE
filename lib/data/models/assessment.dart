@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import 'symptom_response.dart';
 
 enum RiskLevel { undetected, low, moderate, high }
 
@@ -83,6 +84,7 @@ class Assessment {
   final bool escalate;
   final String? imagePath;
   final String? imageUrl;
+  final SymptomResponse? symptoms;
 
   const Assessment({
     required this.id,
@@ -95,6 +97,7 @@ class Assessment {
     required this.escalate,
     this.imagePath,
     this.imageUrl,
+    this.symptoms,
   });
 
   factory Assessment.fromJson(Map<String, dynamic> json, {String? imagePath}) {
@@ -106,6 +109,7 @@ class Assessment {
         ? RiskLevelExtension.fromString(json['risk_level'] ?? 'low')
         : RiskLevel.undetected;
 
+    final symptomsData = json['symptoms'] as Map<String, dynamic>?;
     return Assessment(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
@@ -117,10 +121,14 @@ class Assessment {
       escalate: centralLineDetected && (json['escalate'] ?? false),
       imagePath: imagePath,
       imageUrl: json['image_url'] as String?,
+      symptoms: symptomsData != null
+          ? SymptomResponse.fromJson(symptomsData)
+          : null,
     );
   }
 
-  Assessment copyWith({String? imageUrl}) => Assessment(
+  Assessment copyWith({String? imageUrl, SymptomResponse? symptoms}) =>
+      Assessment(
         id: id,
         timestamp: timestamp,
         riskLevel: riskLevel,
@@ -131,6 +139,7 @@ class Assessment {
         escalate: escalate,
         imagePath: imagePath,
         imageUrl: imageUrl ?? this.imageUrl,
+        symptoms: symptoms ?? this.symptoms,
       );
 
   Map<String, dynamic> toJson() => {
@@ -144,5 +153,6 @@ class Assessment {
         'escalate': escalate,
         'image_path': imagePath,
         'image_url': imageUrl,
+        if (symptoms != null) 'symptoms': symptoms!.toJson(),
       };
 }

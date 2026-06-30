@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
 import '../../data/services/firestore_service.dart';
 import '../../shared/widgets/risk_badge.dart';
+import 'entry_detail_screen.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
@@ -21,23 +20,37 @@ class HistoryScreen extends StatelessWidget {
           ? const Center(child: Text('Not signed in'))
           : StreamBuilder<List<Assessment>>(
               stream: FirestoreService().assessmentStream(userId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+              builder: (context, assessSnap) {
+                if (assessSnap.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(color: AppColors.accent),
                   );
                 }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
+                if (assessSnap.hasError) {
+                  return Center(child: Text('Error: ${assessSnap.error}'));
                 }
-                final assessments = snapshot.data ?? [];
+                final assessments = assessSnap.data ?? [];
                 if (assessments.isEmpty) return _buildEmpty(context);
-                return ListView.separated(
-                  padding: const EdgeInsets.all(24),
-                  itemCount: assessments.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) =>
-                      _buildHistoryCard(context, assessments[index]),
+
+                // Merge review status from flagged_cases for escalated entries
+                return StreamBuilder<List<FlaggedCase>>(
+                  stream: FirestoreService().flaggedCasesForUser(userId),
+                  builder: (context, flagSnap) {
+                    final flaggedById = {
+                      for (final f in flagSnap.data ?? []) f.id: f,
+                    };
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(24),
+                      itemCount: assessments.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 12),
+                      itemBuilder: (context, index) => _buildCard(
+                        context,
+                        assessments[index],
+                        flaggedById[assessments[index].id],
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -53,9 +66,10 @@ class HistoryScreen extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'No assessments yet',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 8),
           Text(
@@ -68,174 +82,93 @@ class HistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHistoryCard(BuildContext context, Assessment assessment) {
+  Widget _buildCard(
+      BuildContext context, Assessment assessment, FlaggedCase? flagged) {
     final dateStr =
-        DateFormat('EEEE, d MMM — HH:mm').format(assessment.timestamp);
-    final hasLocalImage = assessment.imagePath != null &&
-        File(assessment.imagePath!).existsSync();
-    final hasRemoteImage =
-        assessment.imageUrl != null && assessment.imageUrl!.isNotEmpty;
+        DateFormat('d MMM yyyy — HH:mm').format(assessment.timestamp);
+    final reviewed = flagged?.reviewed ?? false;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder),
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EntryDetailScreen(assessment: assessment),
+        ),
       ),
-      clipBehavior: Clip.hardEdge,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Photo — prefer the local file (no network needed), fall back
-          // to the Storage URL once the local temp file is gone.
-          if (hasLocalImage)
-            _buildImageHeader(assessment.imagePath!, assessment.riskLevel)
-          else if (hasRemoteImage)
-            _buildRemoteImageHeader(assessment.imageUrl!, assessment.riskLevel)
-          else
-            _buildNoImagePlaceholder(assessment.riskLevel),
-
-          // Text content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      dateStr,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(fontSize: 12),
-                    ),
-                    RiskBadge(riskLevel: assessment.riskLevel),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  assessment.patientMessage,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
-                ),
-                if (assessment.escalate) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Icon(Icons.person_outline,
-                          size: 13, color: AppColors.riskModerate),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Escalated to clinician',
-                        style: TextStyle(
-                          color: AppColors.riskModerate,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: assessment.riskLevel.backgroundColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: assessment.riskLevel.color.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    dateStr,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 12),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    assessment.patientMessage,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                RiskBadge(riskLevel: assessment.riskLevel),
+                if (assessment.escalate) ...[
+                  const SizedBox(height: 6),
+                  _reviewIndicator(reviewed),
                 ],
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildImageHeader(String imagePath, RiskLevel riskLevel) {
-    return Stack(
+  Widget _reviewIndicator(bool reviewed) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Image.file(
-          File(imagePath),
-          width: double.infinity,
-          height: 160,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildNoImagePlaceholder(riskLevel),
+        Icon(
+          reviewed ? Icons.check_box : Icons.hourglass_empty_outlined,
+          size: 14,
+          color: reviewed ? AppColors.riskLow : AppColors.riskModerate,
         ),
-        // Subtle gradient overlay so the badge stays readable
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.3),
-                ],
-              ),
-            ),
+        const SizedBox(width: 4),
+        Text(
+          reviewed ? 'Reviewed' : 'Awaiting review',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: reviewed ? AppColors.riskLow : AppColors.riskModerate,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildRemoteImageHeader(String imageUrl, RiskLevel riskLevel) {
-    return Stack(
-      children: [
-        CachedNetworkImage(
-          imageUrl: imageUrl,
-          width: double.infinity,
-          height: 160,
-          fit: BoxFit.cover,
-          placeholder: (context, url) => Container(
-            width: double.infinity,
-            height: 160,
-            color: AppColors.surface,
-            child: const Center(
-              child: CircularProgressIndicator(
-                  color: AppColors.accent, strokeWidth: 2),
-            ),
-          ),
-          errorWidget: (context, url, error) =>
-              _buildNoImagePlaceholder(riskLevel),
-        ),
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withOpacity(0.3),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNoImagePlaceholder(RiskLevel riskLevel) {
-    return Container(
-      width: double.infinity,
-      height: 72,
-      color: AppColors.surface,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.image_not_supported_outlined,
-              size: 18, color: AppColors.textSecondary),
-          const SizedBox(width: 8),
-          Text(
-            'No photo available',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

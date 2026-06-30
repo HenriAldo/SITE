@@ -7,6 +7,7 @@ import '../../data/models/patient_profile.dart';
 import '../../data/services/firestore_service.dart';
 import '../../shared/widgets/risk_badge.dart';
 import '../assessment/guided_capture_screen.dart';
+import '../history/entry_detail_screen.dart';
 import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -108,9 +109,11 @@ class HomeScreen extends StatelessWidget {
       stream: FirestoreService().assessmentStream(userId),
       builder: (context, snapshot) {
         final assessments = snapshot.data ?? [];
-        final checkedInToday =
-            assessments.isNotEmpty && _isToday(assessments.first.timestamp);
-        return checkedInToday
+        // Only count scans where a central line was actually detected;
+        // failed/no-detection scans should not block the daily retake.
+        final validToday = assessments.any(
+            (a) => a.centralLineDetected && _isToday(a.timestamp));
+        return validToday
             ? _buildCheckedInTodayCard(context)
             : _buildCheckInDueCard(context);
       },
@@ -269,7 +272,14 @@ class HomeScreen extends StatelessWidget {
         final dateStr =
             DateFormat('EEEE, d MMM — HH:mm').format(latest.timestamp);
 
-        return Container(
+        return InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => EntryDetailScreen(assessment: latest)),
+          ),
+          child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: AppColors.surface,
@@ -310,6 +320,7 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
+        ),
         );
       },
     );

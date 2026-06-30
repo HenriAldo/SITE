@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/theme_controller.dart';
@@ -503,16 +504,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: valueColor ?? AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
+            child: GestureDetector(
+              onLongPress: () => _copyToClipboard(context, value),
+              child: Text(
+                value,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: valueColor ?? AppColors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  void _copyToClipboard(BuildContext context, String text) {
+    HapticFeedback.mediumImpact();
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Copied to clipboard')),
     );
   }
 
