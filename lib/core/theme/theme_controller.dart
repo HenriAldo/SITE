@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Tracks the user's light/dark mode preference and persists it locally.
 class ThemeController extends ValueNotifier<ThemeMode> {
-  ThemeController._() : super(ThemeMode.dark);
+  ThemeController._() : super(ThemeMode.light);
 
   static final ThemeController instance = ThemeController._();
 
@@ -11,8 +11,8 @@ class ThemeController extends ValueNotifier<ThemeMode> {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getString(_prefsKey) == 'light') {
-      value = ThemeMode.light;
+    if (prefs.getString(_prefsKey) == 'dark') {
+      value = ThemeMode.dark;
     }
   }
 

@@ -27,14 +27,22 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
 
+  // A clinician editing a patient's profile can see/change everything;
+  // a patient editing their own profile may only change catheter type
+  // and care team — clinical context and the insertion date are set by
+  // the clinician.
+  bool get _isClinicianEditing => widget.targetUserId != null;
+
   // Clinical fields
   late TextEditingController _ageController;
   late TextEditingController _diagnosisController;
   late TextEditingController _comorbiditiesController;
-  late TextEditingController _lastLabsController;
   String _catheterType = 'PICC';
   DateTime _insertionDate = DateTime.now();
   bool _isImmunosuppressed = false;
+
+  // Preserved as-is when the patient (not the clinician) is editing.
+  String? _existingLastLabSummary;
 
   // Care team fields
   late TextEditingController _clinicianController;
@@ -58,8 +66,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _diagnosisController = TextEditingController(text: p?.diagnosis ?? '');
     _comorbiditiesController = TextEditingController(
         text: p?.comorbidities.join(', ') ?? '');
-    _lastLabsController =
-        TextEditingController(text: p?.lastLabSummary ?? '');
+    _existingLastLabSummary = p?.lastLabSummary;
     _catheterType = p?.catheterType ?? 'PICC';
     _insertionDate = p?.insertionDate ?? DateTime.now();
     _isImmunosuppressed = p?.isImmunosuppressed ?? false;
@@ -76,7 +83,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _ageController.dispose();
     _diagnosisController.dispose();
     _comorbiditiesController.dispose();
-    _lastLabsController.dispose();
     _clinicianController.dispose();
     _phoneController.dispose();
     _clinicController.dispose();
@@ -119,38 +125,46 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               const SizedBox(height: 12),
               _buildCatheterTypeField(),
               const SizedBox(height: 14),
-              _buildInsertionDateField(context),
+              if (_isClinicianEditing)
+                _buildInsertionDateField(context)
+              else
+                _readOnlyRow('Insertion date',
+                    DateFormat('d MMMM yyyy').format(_insertionDate)),
               const SizedBox(height: 24),
               _sectionHeader('Clinical Context'),
               const SizedBox(height: 12),
-              _buildTextField(
-                controller: _ageController,
-                label: 'Age',
-                keyboardType: TextInputType.number,
-                validator: (v) =>
-                    v == null || v.isEmpty ? 'Please enter your age' : null,
-              ),
-              const SizedBox(height: 14),
-              _buildTextField(
-                controller: _diagnosisController,
-                label: 'Diagnosis',
-                hint: 'e.g. DLBCL on R-CHOP',
-              ),
-              const SizedBox(height: 14),
-              _buildImmunosuppressionField(),
-              const SizedBox(height: 14),
-              _buildTextField(
-                controller: _comorbiditiesController,
-                label: 'Comorbidities',
-                hint: 'e.g. Hypertension, Diabetes (comma-separated)',
-              ),
-              const SizedBox(height: 14),
-              _buildTextField(
-                controller: _lastLabsController,
-                label: 'Last lab summary',
-                hint: 'e.g. CRP 12 mg/L, WBC 3.2',
-                maxLines: 2,
-              ),
+              if (_isClinicianEditing) ...[
+                _buildTextField(
+                  controller: _ageController,
+                  label: 'Age',
+                  keyboardType: TextInputType.number,
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Please enter your age' : null,
+                ),
+                const SizedBox(height: 14),
+                _buildTextField(
+                  controller: _diagnosisController,
+                  label: 'Diagnosis',
+                  hint: 'e.g. DLBCL on R-CHOP',
+                ),
+                const SizedBox(height: 14),
+                _buildImmunosuppressionField(),
+                const SizedBox(height: 14),
+                _buildTextField(
+                  controller: _comorbiditiesController,
+                  label: 'Comorbidities',
+                  hint: 'e.g. Hypertension, Diabetes (comma-separated)',
+                ),
+              ] else ...[
+                if (_ageController.text.isNotEmpty)
+                  _readOnlyRow('Age', _ageController.text),
+                if (_diagnosisController.text.isNotEmpty)
+                  _readOnlyRow('Diagnosis', _diagnosisController.text),
+                _readOnlyRow('Immunosuppressed',
+                    _isImmunosuppressed ? 'Yes' : 'No'),
+                if (_comorbiditiesController.text.isNotEmpty)
+                  _readOnlyRow('Comorbidities', _comorbiditiesController.text),
+              ],
               const SizedBox(height: 24),
               _sectionHeader('Care Team'),
               const SizedBox(height: 12),
@@ -181,6 +195,28 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _readOnlyRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(label, style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                  color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -301,9 +337,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       diagnosis: _diagnosisController.text.trim(),
       isImmunosuppressed: _isImmunosuppressed,
       comorbidities: comorbidities,
-      lastLabSummary: _lastLabsController.text.trim().isEmpty
-          ? null
-          : _lastLabsController.text.trim(),
+      lastLabSummary: _existingLastLabSummary,
       careTeam: CareTeam(
         clinicianName: _clinicianController.text.trim(),
         phone: _phoneController.text.trim(),

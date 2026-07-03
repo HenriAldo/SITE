@@ -196,8 +196,6 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
                   ),
                 ),
                 const SizedBox(height: 40),
-                const CircularProgressIndicator(color: AppColors.accent),
-                const SizedBox(height: 28),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 400),
                   child: Text(

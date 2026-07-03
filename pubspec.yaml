@@ -38,6 +38,9 @@ dependencies:
   intl: ^0.19.0
   cached_network_image: ^3.3.1
 
+  # Voice input
+  speech_to_text: ^6.6.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -463,6 +463,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
       if (s.hasRedness) 'Redness',
       if (s.hasSwelling) 'Swelling',
       if (s.hasDrainage) 'Discharge or leaking',
+      ...s.extraSymptoms,
     ];
 
     return _sectionCard(

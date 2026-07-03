@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
@@ -26,6 +27,10 @@ class EntryDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (assessment.escalate) ...[
+              _buildClinicianSection(context),
+              const SizedBox(height: 20),
+            ],
             _buildImage(),
             const SizedBox(height: 20),
             _buildStatusSection(context),
@@ -33,10 +38,6 @@ class EntryDetailScreen extends StatelessWidget {
             _buildSymptomsSection(context),
             const SizedBox(height: 20),
             _buildAiSection(context),
-            if (assessment.escalate) ...[
-              const SizedBox(height: 20),
-              _buildClinicianSection(context),
-            ],
             const SizedBox(height: 32),
           ],
         ),
@@ -47,8 +48,9 @@ class EntryDetailScreen extends StatelessWidget {
   Widget _buildImage() {
     final hasUrl =
         assessment.imageUrl != null && assessment.imageUrl!.isNotEmpty;
-    final hasFile =
-        assessment.imagePath != null && File(assessment.imagePath!).existsSync();
+    final hasFile = !kIsWeb &&
+        assessment.imagePath != null &&
+        File(assessment.imagePath!).existsSync();
 
     if (!hasUrl && !hasFile) return const SizedBox.shrink();
 
@@ -60,13 +62,11 @@ class EntryDetailScreen extends StatelessWidget {
     );
   }
 
-  // The displayed status: if the case was escalated, fetch the clinician's
-  // classification; show that if available, otherwise show the AI risk.
+  // The displayed status: fetch the clinician's review (if any) for every
+  // assessment, not just escalated ones — so unreviewed non-escalated
+  // cases (including "Not Detected") can still show a not-yet-checked
+  // notice on the detail screen.
   Widget _buildStatusSection(BuildContext context) {
-    if (!assessment.escalate) {
-      return _statusCard(context, assessment.riskLevel, clinicianOverride: false);
-    }
-
     return FutureBuilder<FlaggedCase?>(
       future: FirestoreService().getFlaggedCase(assessment.id),
       builder: (context, snap) {
@@ -74,14 +74,15 @@ class EntryDetailScreen extends StatelessWidget {
         final effectiveLevel =
             flagged?.clinicianClassification ?? assessment.riskLevel;
         final hasClinician = flagged?.clinicianClassification != null;
+        final reviewed = flagged?.reviewed ?? false;
         return _statusCard(context, effectiveLevel,
-            clinicianOverride: hasClinician);
+            clinicianOverride: hasClinician, reviewed: reviewed);
       },
     );
   }
 
   Widget _statusCard(BuildContext context, RiskLevel level,
-      {required bool clinicianOverride}) {
+      {required bool clinicianOverride, required bool reviewed}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -98,8 +99,20 @@ class EntryDetailScreen extends StatelessWidget {
             Expanded(
               child: Text(
                 'Confirmed by your clinician',
+                textAlign: TextAlign.right,
                 style: TextStyle(
                     fontSize: 12, color: level.color, fontWeight: FontWeight.w500),
+              ),
+            )
+          else if (!reviewed)
+            Expanded(
+              child: Text(
+                'Not yet checked by a clinician',
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500),
               ),
             ),
         ],
@@ -143,12 +156,15 @@ class EntryDetailScreen extends StatelessWidget {
                       if (symptoms.hasSwelling) _symptomRow(context, 'Swelling'),
                       if (symptoms.hasDrainage)
                         _symptomRow(context, 'Discharge or leaking'),
+                      for (final extra in symptoms.extraSymptoms)
+                        _symptomRow(context, extra),
                       if (!symptoms.hasFever &&
                           !symptoms.hasChills &&
                           !symptoms.hasPain &&
                           !symptoms.hasRedness &&
                           !symptoms.hasSwelling &&
-                          !symptoms.hasDrainage)
+                          !symptoms.hasDrainage &&
+                          symptoms.extraSymptoms.isEmpty)
                         Text('Symptoms present but none selected.',
                             style: Theme.of(context).textTheme.bodyMedium),
                     ],

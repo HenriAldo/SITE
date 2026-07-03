@@ -51,5 +51,13 @@
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSCameraUsageDescription</key>
+		<string>SITE needs camera access so you can photograph your catheter exit site for your daily check-in.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>SITE needs photo library access so you can choose an existing photo for your check-in.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>SITE needs microphone access to dictate notes using voice-to-text.</string>
+		<key>NSSpeechRecognitionUsageDescription</key>
+		<string>SITE needs speech recognition to convert your dictated notes into text.</string>
 	</dict>
 </plist>

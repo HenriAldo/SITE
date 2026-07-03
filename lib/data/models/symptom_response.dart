@@ -8,6 +8,9 @@ class SymptomResponse {
   final bool hasChills;
   final double? feverTemperature;
   final String? additionalNotes;
+  /// Free-form symptoms picked from the "add more symptoms" search popup —
+  /// not covered by the fixed hasXxx fields above.
+  final List<String> extraSymptoms;
 
   const SymptomResponse({
     required this.hasSymptoms,
@@ -19,6 +22,7 @@ class SymptomResponse {
     this.hasChills = false,
     this.feverTemperature,
     this.additionalNotes,
+    this.extraSymptoms = const [],
   });
 
   factory SymptomResponse.none() => const SymptomResponse(hasSymptoms: false);
@@ -32,6 +36,7 @@ class SymptomResponse {
         'redness': hasRedness,
         'drainage': hasDrainage,
         'chills': hasChills,
+        'other_symptoms': extraSymptoms,
         'additional_notes': additionalNotes,
       };
 
@@ -44,6 +49,7 @@ class SymptomResponse {
         'redness': hasRedness,
         'drainage': hasDrainage,
         'chills': hasChills,
+        'other_symptoms': extraSymptoms,
         'additional_notes': additionalNotes,
       };
 
@@ -58,5 +64,6 @@ class SymptomResponse {
         hasChills: json['chills'] as bool? ?? false,
         feverTemperature: (json['fever_temperature_celsius'] as num?)?.toDouble(),
         additionalNotes: json['additional_notes'] as String?,
+        extraSymptoms: List<String>.from(json['other_symptoms'] ?? const []),
       );
 }

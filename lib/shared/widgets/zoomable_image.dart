@@ -144,30 +144,54 @@ class _FullScreenImageViewer extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-      ),
-      body: Center(
-        child: Hero(
-          tag: heroTag,
-          child: InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 8,
-            child: url != null && url!.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: url!,
-                    fit: BoxFit.contain,
-                    placeholder: (_, __) => const CircularProgressIndicator(
-                        color: Colors.white),
-                    errorWidget: (_, __, ___) => const Icon(
-                        Icons.broken_image_outlined,
-                        color: Colors.white,
-                        size: 48),
-                  )
-                : file != null
-                    ? Image.file(file!, fit: BoxFit.contain)
-                    : const Icon(Icons.broken_image_outlined,
-                        color: Colors.white, size: 48),
-          ),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
         ),
+      ),
+      body: Stack(
+        children: [
+          Center(
+            child: Hero(
+              tag: heroTag,
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 8,
+                child: url != null && url!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: url!,
+                        fit: BoxFit.contain,
+                        placeholder: (_, __) => const CircularProgressIndicator(
+                            color: Colors.white),
+                        errorWidget: (_, __, ___) => const Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.white,
+                            size: 48),
+                      )
+                    : file != null
+                        ? Image.file(file!, fit: BoxFit.contain)
+                        : const Icon(Icons.broken_image_outlined,
+                            color: Colors.white, size: 48),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 24,
+            child: Center(
+              child: ElevatedButton.icon(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+                label: const Text('Close'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

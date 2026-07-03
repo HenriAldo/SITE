@@ -1,13 +1,16 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
-import '../../data/models/patient_profile.dart';
 import '../../data/services/firestore_service.dart';
+import '../../data/services/notification_prefs.dart';
 import '../../shared/widgets/risk_badge.dart';
 import '../assessment/guided_capture_screen.dart';
 import '../history/entry_detail_screen.dart';
+import '../notifications/notifications_screen.dart';
+import '../profile/faq_screen.dart';
 import '../profile/profile_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -79,21 +82,27 @@ class HomeScreen extends StatelessWidget {
                 ),
               ],
             ),
-        GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          ),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorder),
+        Row(
+          children: [
+            const _NotificationBell(),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              ),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.cardBorder),
+                ),
+                child: Icon(Icons.person_outline, color: AppColors.textSecondary),
+              ),
             ),
-            child: Icon(Icons.person_outline, color: AppColors.textSecondary),
-          ),
+          ],
         ),
           ],
         );
@@ -187,6 +196,8 @@ class HomeScreen extends StatelessWidget {
             icon: const Icon(Icons.camera_alt_outlined, size: 18),
             label: const Text('Start Check-In'),
           ),
+          const SizedBox(height: 16),
+          _build116117Notice(context),
         ],
       ),
     );
@@ -218,7 +229,42 @@ class HomeScreen extends StatelessWidget {
                   'Come back tomorrow for your next check-in.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
+                const SizedBox(height: 16),
+                _build116117Notice(context),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _build116117Notice(BuildContext context) {
+    return GestureDetector(
+      onTap: () => launchUrl(Uri(scheme: 'tel', path: '116117')),
+      child: Row(
+        children: [
+          Icon(Icons.phone_outlined, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(fontSize: 12, color: AppColors.textSecondary),
+                children: [
+                  const TextSpan(text: 'In doubt? Call '),
+                  TextSpan(
+                    text: '116117',
+                    style: TextStyle(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const TextSpan(text: ' — the medical on-call service.'),
+                ],
+              ),
             ),
           ),
         ],
@@ -327,99 +373,208 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildInfoSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Temporarily disabled — see _buildStreakSection below.
+        // _buildStreakSection(context),
+        // const SizedBox(height: 20),
+        _buildFaqButton(context),
+      ],
+    );
+  }
+
+  Widget _buildStreakSection(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return const SizedBox.shrink();
 
-    return FutureBuilder<PatientProfile?>(
-      future: userId != null
-          ? FirestoreService().getProfile(userId)
-          : Future.value(null),
-      builder: (context, snapshot) {
-        final profile = snapshot.data;
+    return StreamBuilder<List<Assessment>>(
+      stream: FirestoreService().assessmentStream(userId),
+      builder: (context, assessSnap) {
+        final assessments = assessSnap.data ?? [];
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Your catheter',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 12),
-            if (profile != null) ...[
-              if (profile.catheterType.isNotEmpty)
-                _buildInfoRow(context, Icons.medical_services_outlined,
-                    'Type', profile.catheterType),
-              _buildInfoRow(
-                context,
-                Icons.calendar_today_outlined,
-                'Inserted',
-                '${profile.daysSinceInsertion} days ago',
-              ),
-              if (profile.careTeam != null &&
-                  profile.careTeam!.clinic.isNotEmpty)
-                _buildInfoRow(context, Icons.local_hospital_outlined,
-                    'Care team', profile.careTeam!.clinic),
-            ] else ...[
-              _buildInfoRow(context, Icons.info_outline, 'Profile',
-                  'Set up in your profile'),
-            ],
-            const SizedBox(height: 20),
-            _buildEmergencyBanner(context),
-          ],
+        return StreamBuilder<List<FlaggedCase>>(
+          stream: FirestoreService().flaggedCasesForUser(userId),
+          builder: (context, flagSnap) {
+            final flaggedById = {
+              for (final f in flagSnap.data ?? []) f.id: f,
+            };
+
+            // One entry per local calendar day with a valid (central-line
+            // detected) submission, keeping the clinician's classification
+            // once reviewed. Assessments are newest-first, so the first
+            // match per day is the latest submission for that day.
+            final dayLevels = <DateTime, RiskLevel>{};
+            for (final a in assessments) {
+              if (!a.centralLineDetected) continue;
+              final day =
+                  DateTime(a.timestamp.year, a.timestamp.month, a.timestamp.day);
+              if (dayLevels.containsKey(day)) continue;
+              final flagged = flaggedById[a.id];
+              dayLevels[day] = flagged?.clinicianClassification ?? a.riskLevel;
+            }
+
+            final now = DateTime.now();
+            final today = DateTime(now.year, now.month, now.day);
+            bool hasSubmission(DateTime day) => dayLevels.containsKey(day);
+
+            // A streak breaks after one missed local-calendar day. "Today"
+            // isn't a miss until the day has actually passed, so start
+            // counting from today if it's done, otherwise from yesterday.
+            var cursor =
+                hasSubmission(today) ? today : today.subtract(const Duration(days: 1));
+            var streak = 0;
+            while (hasSubmission(cursor)) {
+              streak++;
+              cursor = cursor.subtract(const Duration(days: 1));
+            }
+
+            final days =
+                List.generate(14, (i) => today.subtract(Duration(days: 13 - i)));
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('Check-in streak',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const Spacer(),
+                    if (streak > 0) ...[
+                      const Icon(Icons.local_fire_department,
+                          color: Colors.deepOrange, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$streak day${streak == 1 ? '' : 's'}',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Last 14 days',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: days
+                      .map((day) => Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 2),
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: dayLevels[day]?.color ??
+                                        AppColors.surface,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: dayLevels[day] == null
+                                        ? Border.all(color: AppColors.cardBorder)
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ))
+                      .toList(),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
-  Widget _buildInfoRow(
-      BuildContext context, IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColors.textSecondary),
-          const SizedBox(width: 12),
-          Text(
-            '$label: ',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
+  Widget _buildFaqButton(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const FaqScreen()),
+      ),
+      icon: const Icon(Icons.help_outline, size: 18),
+      label: const Text('See FAQ'),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 48),
       ),
     );
   }
+}
 
-  Widget _buildEmergencyBanner(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.riskHighBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.riskHigh.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.emergency_outlined, color: AppColors.riskHigh, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'If you have fever above 38°C or severe chills, go to the emergency room immediately.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.riskHigh.withOpacity(0.9),
-                    fontSize: 13,
-                  ),
-            ),
-          ),
-        ],
-      ),
+/// Bell icon showing a dot when the clinician has reviewed a check-in the
+/// patient hasn't seen yet. Purely local (SharedPreferences) — no push
+/// infrastructure required.
+class _NotificationBell extends StatefulWidget {
+  const _NotificationBell();
+
+  @override
+  State<_NotificationBell> createState() => _NotificationBellState();
+}
+
+class _NotificationBellState extends State<_NotificationBell> {
+  @override
+  Widget build(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return const SizedBox.shrink();
+
+    return StreamBuilder<List<FlaggedCase>>(
+      stream: FirestoreService().flaggedCasesForUser(userId),
+      builder: (context, flagSnap) {
+        final reviewed = (flagSnap.data ?? [])
+            .where((f) => f.reviewed && f.reviewedAt != null)
+            .toList();
+
+        return FutureBuilder<DateTime?>(
+          future: NotificationPrefs.getLastSeen(userId),
+          builder: (context, lastSeenSnap) {
+            final lastSeen = lastSeenSnap.data;
+            final hasUnread = reviewed.any(
+                (f) => lastSeen == null || f.reviewedAt!.isAfter(lastSeen));
+
+            return GestureDetector(
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                );
+                if (mounted) setState(() {});
+              },
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.cardBorder),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(Icons.notifications_outlined,
+                        color: AppColors.textSecondary),
+                    if (hasUnread)
+                      Positioned(
+                        top: 9,
+                        right: 10,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.riskHigh,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

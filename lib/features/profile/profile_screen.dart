@@ -321,8 +321,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         if (profile.comorbidities.isNotEmpty)
           _row(context, 'Comorbidities', profile.comorbidities.join(', ')),
-        if (profile.lastLabSummary != null)
-          _row(context, 'Last labs', profile.lastLabSummary!),
       ],
     );
   }

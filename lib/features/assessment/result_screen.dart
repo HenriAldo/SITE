@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
 import '../../shared/widgets/check_in_step_indicator.dart';
 import '../../shared/widgets/risk_badge.dart';
+import '../../shared/widgets/zoomable_image.dart';
 import '../profile/care_team_screen.dart';
+import 'guided_capture_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final Assessment assessment;
@@ -35,7 +38,7 @@ class ResultScreen extends StatelessWidget {
                 _buildFindingsCard(context),
                 const SizedBox(height: 20),
               ],
-              if (assessment.imagePath != null) _buildImagePreview(),
+              _buildImagePreview(),
               const SizedBox(height: 20),
               _buildNextSteps(context),
               const SizedBox(height: 28),
@@ -159,14 +162,19 @@ class ResultScreen extends StatelessWidget {
   }
 
   Widget _buildImagePreview() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Image.file(
-        File(assessment.imagePath!),
-        width: double.infinity,
-        height: 180,
-        fit: BoxFit.cover,
-      ),
+    final hasUrl =
+        assessment.imageUrl != null && assessment.imageUrl!.isNotEmpty;
+    final hasFile = !kIsWeb &&
+        assessment.imagePath != null &&
+        File(assessment.imagePath!).existsSync();
+
+    if (!hasUrl && !hasFile) return const SizedBox.shrink();
+
+    return ZoomableImage(
+      url: hasUrl ? assessment.imageUrl : null,
+      file: hasFile ? File(assessment.imagePath!) : null,
+      heroTag: 'result-${assessment.id}',
+      aspectRatio: 4 / 3,
     );
   }
 
@@ -243,14 +251,27 @@ class ResultScreen extends StatelessWidget {
   Widget _buildActions(BuildContext context) {
     return Column(
       children: [
-        if (assessment.riskLevel == RiskLevel.undetected)
-          // "Try Again" already returns home — no need for a second button.
+        if (assessment.riskLevel == RiskLevel.undetected) ...[
           ElevatedButton.icon(
-            onPressed: () =>
-                Navigator.popUntil(context, (route) => route.isFirst),
+            onPressed: () => Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GuidedCaptureScreen(
+                  initialSymptoms: assessment.symptoms,
+                ),
+              ),
+              (route) => route.isFirst,
+            ),
             icon: const Icon(Icons.camera_alt_outlined, size: 18),
             label: const Text('Try Again'),
           ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () =>
+                Navigator.popUntil(context, (route) => route.isFirst),
+            child: const Text('Done'),
+          ),
+        ],
         if (assessment.riskLevel == RiskLevel.high) ...[
           ElevatedButton.icon(
             onPressed: () => Navigator.push(

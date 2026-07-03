@@ -177,6 +177,7 @@ class FirestoreService {
         symptoms: symptomsData != null
             ? SymptomResponse.fromJson(symptomsData)
             : null,
+        reviewedAt: (data['reviewed_at'] as Timestamp?)?.toDate().toLocal(),
       );
     } catch (_) {
       return null;
@@ -211,6 +212,7 @@ class FirestoreService {
         symptoms: symptomsData != null
             ? SymptomResponse.fromJson(symptomsData)
             : null,
+        reviewedAt: (data['reviewed_at'] as Timestamp?)?.toDate().toLocal(),
       );
     } catch (_) {
       return null;
@@ -353,6 +355,7 @@ class FlaggedCase {
   final String? imageUrl;
   final RiskLevel? clinicianClassification;
   final SymptomResponse? symptoms;
+  final DateTime? reviewedAt;
 
   const FlaggedCase({
     required this.id,
@@ -370,6 +373,7 @@ class FlaggedCase {
     this.imageUrl,
     this.clinicianClassification,
     this.symptoms,
+    this.reviewedAt,
   });
 }
 

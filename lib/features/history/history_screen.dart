@@ -45,6 +45,24 @@ class HistoryScreen extends StatelessWidget {
                     final flaggedById = {
                       for (final f in flagSnap.data ?? []) f.id: f,
                     };
+
+                    // Assessments are newest-first. Once a newer escalated
+                    // entry has been reviewed, older unreviewed entries no
+                    // longer need to show "Awaiting review" — the patient's
+                    // most recent status already reflects clinician input.
+                    var newerReviewedSeen = false;
+                    final suppressBadge = List<bool>.filled(
+                        assessments.length, false);
+                    for (var i = 0; i < assessments.length; i++) {
+                      final flagged = flaggedById[assessments[i].id];
+                      if (!assessments[i].escalate) continue;
+                      if (flagged?.reviewed ?? false) {
+                        newerReviewedSeen = true;
+                      } else {
+                        suppressBadge[i] = newerReviewedSeen;
+                      }
+                    }
+
                     return ListView.separated(
                       padding: const EdgeInsets.all(24),
                       itemCount: assessments.length,
@@ -54,6 +72,7 @@ class HistoryScreen extends StatelessWidget {
                         context,
                         assessments[index],
                         flaggedById[assessments[index].id],
+                        suppressBadge[index],
                       ),
                     );
                   },
@@ -88,11 +107,13 @@ class HistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCard(
-      BuildContext context, Assessment assessment, FlaggedCase? flagged) {
+  Widget _buildCard(BuildContext context, Assessment assessment,
+      FlaggedCase? flagged, bool suppressAwaitingBadge) {
     final dateStr =
         DateFormat('d MMM yyyy — HH:mm').format(assessment.timestamp);
     final reviewed = flagged?.reviewed ?? false;
+    final effectiveLevel = flagged?.clinicianClassification ?? assessment.riskLevel;
+    final hasClinicianOverride = flagged?.clinicianClassification != null;
 
     return InkWell(
       borderRadius: BorderRadius.circular(14),
@@ -105,10 +126,10 @@ class HistoryScreen extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: assessment.riskLevel.backgroundColor,
+          color: effectiveLevel.backgroundColor,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: assessment.riskLevel.color.withValues(alpha: 0.35),
+            color: effectiveLevel.color.withValues(alpha: 0.35),
           ),
         ),
         child: Row(
@@ -136,6 +157,17 @@ class HistoryScreen extends StatelessWidget {
                           height: 1.5,
                         ),
                   ),
+                  if (hasClinicianOverride) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Adjusted by your clinician',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: effectiveLevel.color,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -143,8 +175,9 @@ class HistoryScreen extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                RiskBadge(riskLevel: assessment.riskLevel),
-                if (assessment.escalate) ...[
+                RiskBadge(riskLevel: effectiveLevel),
+                if (assessment.escalate &&
+                    (reviewed || !suppressAwaitingBadge)) ...[
                   const SizedBox(height: 6),
                   _reviewIndicator(reviewed),
                 ],

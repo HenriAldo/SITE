@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/symptom_response.dart';
 import '../../shared/widgets/check_in_step_indicator.dart';
@@ -7,8 +8,15 @@ import 'analyzing_screen.dart';
 
 class SymptomQuestionnaireScreen extends StatefulWidget {
   final File image;
+  /// Prefills the form when returning here via "Try Again" from an
+  /// undetected result, so the patient doesn't re-enter the same answers.
+  final SymptomResponse? initialSymptoms;
 
-  const SymptomQuestionnaireScreen({super.key, required this.image});
+  const SymptomQuestionnaireScreen({
+    super.key,
+    required this.image,
+    this.initialSymptoms,
+  });
 
   @override
   State<SymptomQuestionnaireScreen> createState() =>
@@ -24,10 +32,108 @@ class _SymptomQuestionnaireScreenState
   bool _hasRedness = false;
   bool _hasDrainage = false;
   bool _hasChills = false;
-  final _notesController = TextEditingController();
+  final Set<String> _extraSymptoms = {};
+  late final _notesController = TextEditingController(
+      text: widget.initialSymptoms?.additionalNotes ?? '');
+
+  final SpeechToText _speech = SpeechToText();
+  bool _speechAvailable = false;
+  bool _isListening = false;
+
+  // The searchable "add more symptoms" list — the 6 built-in tiles above
+  // (fever, chills, pain, redness, swelling, discharge) are intentionally
+  // excluded so nothing appears twice.
+  static const List<String> _extraSymptomOptions = [
+    'Fatigue',
+    'Weakness',
+    'Unintentional weight loss',
+    'Loss of appetite',
+    'Night sweats',
+    'Warmth at the exit site',
+    'Skin breakdown or crusting at the site',
+    'Swelling of the arm, neck, or face',
+    'Visible collateral (surface) veins on the chest',
+    'Difficulty flushing or drawing blood from the line',
+    'Leaking from the catheter hub or site',
+    'Hypotension',
+    'Tachycardia',
+    'Confusion or altered mental status',
+    'Nausea',
+    'Vomiting',
+    'Mucositis (mouth sores)',
+    'Bruising or unusual bleeding',
+    'Pallor',
+    'Recurrent infections',
+    'Shortness of breath',
+    'Chest pain',
+    'Cough',
+    'Numbness or tingling near the collarbone',
+    'Jaundice',
+    'Abdominal swelling or pain',
+    'Bone pain',
+    'Headache',
+    'Neurological deficits (weakness, vision changes, speech changes)',
+    'Constipation',
+    'Increased urination',
+    'Hair loss',
+    'Rash',
+    'Peripheral neuropathy (numbness/tingling in hands or feet)',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialSymptoms;
+    if (initial != null) {
+      _hasSymptoms = initial.hasSymptoms;
+      _hasFever = initial.hasFever;
+      _hasPain = initial.hasPain;
+      _hasSwelling = initial.hasSwelling;
+      _hasRedness = initial.hasRedness;
+      _hasDrainage = initial.hasDrainage;
+      _hasChills = initial.hasChills;
+      _extraSymptoms.addAll(initial.extraSymptoms);
+    }
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    final available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          if (mounted) setState(() => _isListening = false);
+        }
+      },
+      onError: (_) {
+        if (mounted) setState(() => _isListening = false);
+      },
+    );
+    if (mounted) setState(() => _speechAvailable = available);
+  }
+
+  Future<void> _toggleListening() async {
+    if (!_speechAvailable) return;
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+    setState(() => _isListening = true);
+    await _speech.listen(
+      onResult: (result) {
+        if (!mounted) return;
+        setState(() {
+          _notesController.text = result.recognizedWords;
+          _notesController.selection =
+              TextSelection.collapsed(offset: _notesController.text.length);
+        });
+      },
+    );
+  }
 
   @override
   void dispose() {
+    if (_isListening) _speech.cancel();
     _notesController.dispose();
     super.dispose();
   }
@@ -88,6 +194,30 @@ class _SymptomQuestionnaireScreenState
         Text(
           'Did you notice any symptoms in the last 24 hours?',
           style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.cardBorder),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 16, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'A symptom is anything unusual you feel or notice on your '
+                  'body — for example fever, chills, swelling, redness, or '
+                  'pain around the catheter site.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         Row(
@@ -170,54 +300,138 @@ class _SymptomQuestionnaireScreenState
         ),
         const SizedBox(height: 4),
         Text(
-          'Select all that apply.',
+          'Tap all that apply.',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
-        _buildSymptomTile(
-          'Fever',
-          'Temperature above 38°C',
-          Icons.thermostat_outlined,
-          _hasFever,
-          (v) => setState(() => _hasFever = v),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _buildSymptomBox(
+              label: 'Fever',
+              icon: Icons.thermostat_outlined,
+              value: _hasFever,
+              onTap: () => setState(() => _hasFever = !_hasFever),
+            ),
+            _buildSymptomBox(
+              label: 'Chills',
+              icon: Icons.ac_unit_outlined,
+              value: _hasChills,
+              onTap: () => setState(() => _hasChills = !_hasChills),
+            ),
+            _buildSymptomBox(
+              label: 'Pain at site',
+              icon: Icons.pin_drop_outlined,
+              value: _hasPain,
+              onTap: () => setState(() => _hasPain = !_hasPain),
+            ),
+            _buildSymptomBox(
+              label: 'Redness',
+              customIcon: _buildRednessIcon(),
+              value: _hasRedness,
+              onTap: () => setState(() => _hasRedness = !_hasRedness),
+            ),
+            _buildSymptomBox(
+              label: 'Swelling',
+              icon: Icons.water_outlined,
+              value: _hasSwelling,
+              onTap: () => setState(() => _hasSwelling = !_hasSwelling),
+            ),
+            _buildSymptomBox(
+              label: 'Discharge',
+              icon: Icons.opacity_outlined,
+              value: _hasDrainage,
+              onTap: () => setState(() => _hasDrainage = !_hasDrainage),
+            ),
+            for (final extra in _extraSymptoms)
+              _buildSymptomBox(
+                label: extra,
+                icon: Icons.check_circle_outline,
+                value: true,
+                onTap: () => setState(() => _extraSymptoms.remove(extra)),
+              ),
+          ],
         ),
-        _buildSymptomTile(
-          'Chills or shivering',
-          'Sudden cold feeling or shaking',
-          Icons.ac_unit_outlined,
-          _hasChills,
-          (v) => setState(() => _hasChills = v),
-        ),
-        _buildSymptomTile(
-          'Pain at the catheter site',
-          'Tenderness or discomfort around the line',
-          Icons.pin_drop_outlined,
-          _hasPain,
-          (v) => setState(() => _hasPain = v),
-        ),
-        _buildSymptomTile(
-          'Redness',
-          'Skin around the catheter appears red',
-          Icons.circle_outlined,
-          _hasRedness,
-          (v) => setState(() => _hasRedness = v),
-        ),
-        _buildSymptomTile(
-          'Swelling',
-          'Area around catheter feels puffy',
-          Icons.water_outlined,
-          _hasSwelling,
-          (v) => setState(() => _hasSwelling = v),
-        ),
-        _buildSymptomTile(
-          'Discharge or leaking',
-          'Fluid or crusting around the catheter',
-          Icons.opacity_outlined,
-          _hasDrainage,
-          (v) => setState(() => _hasDrainage = v),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          onPressed: () => _openAddMoreSymptoms(context),
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Add more symptoms'),
         ),
       ],
     );
+  }
+
+  Widget _buildSymptomBox({
+    required String label,
+    required bool value,
+    required VoidCallback onTap,
+    IconData? icon,
+    Widget? customIcon,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 100,
+        height: 100,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: value ? AppColors.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: value ? AppColors.accent : AppColors.cardBorder,
+            width: value ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            customIcon ??
+                Icon(
+                  icon,
+                  size: 26,
+                  color: value ? Colors.white : AppColors.textSecondary,
+                ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: value ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAddMoreSymptoms(BuildContext context) async {
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _AddSymptomsSheet(
+        options: _extraSymptomOptions,
+        initiallySelected: _extraSymptoms,
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        _extraSymptoms
+          ..clear()
+          ..addAll(result);
+      });
+    }
   }
 
   Widget _buildNotesField(BuildContext context) {
@@ -249,72 +463,40 @@ class _SymptomQuestionnaireScreenState
             ),
             filled: true,
             fillColor: AppColors.surface,
+            suffixIcon: _speechAvailable
+                ? IconButton(
+                    tooltip: _isListening ? 'Stop dictation' : 'Dictate notes',
+                    icon: Icon(
+                      _isListening ? Icons.mic : Icons.mic_none,
+                      color: _isListening
+                          ? AppColors.accent
+                          : AppColors.textSecondary,
+                    ),
+                    onPressed: _toggleListening,
+                  )
+                : null,
           ),
         ),
+        if (_isListening) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Listening…',
+            style: TextStyle(color: AppColors.accent, fontSize: 12),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildSymptomTile(
-    String label,
-    String subtitle,
-    IconData icon,
-    bool value,
-    ValueChanged<bool> onChanged,
-  ) {
-    return GestureDetector(
-      onTap: () => onChanged(!value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: value ? AppColors.accent.withOpacity(0.1) : AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: value ? AppColors.accent.withOpacity(0.5) : AppColors.cardBorder,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: value ? AppColors.accent : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: value ? AppColors.textPrimary : AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 15,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Checkbox(
-              value: value,
-              onChanged: (v) => onChanged(v ?? false),
-              activeColor: AppColors.accent,
-              side: BorderSide(color: AppColors.textSecondary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-          ],
+  Widget _buildRednessIcon() {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [Colors.white, Colors.grey, Colors.black87],
+          stops: [0.0, 0.6, 1.0],
         ),
       ),
     );
@@ -332,6 +514,7 @@ class _SymptomQuestionnaireScreenState
       additionalNotes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
+      extraSymptoms: _extraSymptoms.toList(),
     );
 
     Navigator.pushReplacement(
@@ -340,6 +523,128 @@ class _SymptomQuestionnaireScreenState
         builder: (_) => AnalyzingScreen(
           image: widget.image,
           symptoms: symptoms,
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet with a search bar for adding symptoms beyond the 6
+/// built-in tiles. Returns the final selected set on "Done", or null if
+/// dismissed without confirming.
+class _AddSymptomsSheet extends StatefulWidget {
+  final List<String> options;
+  final Set<String> initiallySelected;
+
+  const _AddSymptomsSheet({
+    required this.options,
+    required this.initiallySelected,
+  });
+
+  @override
+  State<_AddSymptomsSheet> createState() => _AddSymptomsSheetState();
+}
+
+class _AddSymptomsSheetState extends State<_AddSymptomsSheet> {
+  late final Set<String> _selected = Set.from(widget.initiallySelected);
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = widget.options
+        .where((o) => o.toLowerCase().contains(_query.toLowerCase()))
+        .toList();
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.75,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Add more symptoms',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, _selected),
+                    child: const Text('Done'),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: (v) => setState(() => _query = v),
+                decoration: InputDecoration(
+                  hintText: 'Search symptoms…',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.cardBorder),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.cardBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.accent),
+                  ),
+                  filled: true,
+                  fillColor: AppColors.background,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No symptoms match your search.',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final option = filtered[index];
+                        final selected = _selected.contains(option);
+                        return CheckboxListTile(
+                          value: selected,
+                          onChanged: (_) => setState(() {
+                            if (selected) {
+                              _selected.remove(option);
+                            } else {
+                              _selected.add(option);
+                            }
+                          }),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          activeColor: AppColors.accent,
+                          title: Text(option),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );
