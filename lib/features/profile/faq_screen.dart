@@ -11,27 +11,43 @@ class FaqScreen extends StatelessWidget {
     ),
     (
       'What are early signs of a catheter site infection?',
-      'Early signs include redness around the insertion site, swelling, warmth, pain or tenderness, and cloudy or unusual discharge. Fever or chills can also indicate that bacteria have entered the bloodstream.'
+      'Early signs include redness around the insertion site, swelling, warmth, pain or tenderness, and cloudy or unusual discharge (pus). Fever or chills can also indicate that bacteria have entered the bloodstream.'
     ),
     (
       'When should I go to the emergency room immediately?',
-      'Go to the ER immediately if you experience fever above 38°C (100.4°F), severe chills or shaking, confusion or difficulty breathing. These may indicate a bloodstream infection that requires urgent treatment. Do not wait for your next check-in.'
+      'Go to the ER immediately if you experience fever above 38°C (100.4°F), severe chills or shaking, confusion, persistent lightheadedness, rapid heartbeat or difficulty breathing. These may indicate a bloodstream infection that requires urgent treatment. Do not wait for your next check-in.'
     ),
     (
       'How often should I do a check-in?',
       'You should complete a daily check-in once per day, ideally at the same time each morning. Consistent daily monitoring gives the AI the best chance of detecting changes early.'
     ),
     (
+      'What if I\'m worried but the app says low or moderate risk?',
+      'Trust your own judgment. The AI assessment does not override how you feel. If you notice new or worsening symptoms, feel unwell, or are simply concerned, contact your care team or seek emergency care regardless of what the app shows — the result is a support tool, not the final word.'
+    ),
+    (
+      'What does "Low Risk" mean for me?',
+      'Low risk means the AI did not detect signs of concern in this check-in. No action is needed beyond continuing your daily monitoring. This does not mean you are free of risk between check-ins — keep watching for new symptoms and contact your care team if anything changes.'
+    ),
+    (
+      'What does "High Risk" mean for me?',
+      'High risk means the AI detected findings consistent with a possible infection that need prompt review by your care team. If you develop fever, chills, or feel unwell before hearing from them, do not wait — go to the ER or contact your care team directly.'
+    ),
+    (
+      'Does SITE monitor for anything other than infection?',
+      'No. SITE only monitors your catheter exit site for signs of infection. It does NOT detect catheter blockage, dislodgement, or blood clots. If you notice arm or neck swelling, resistance or pain during flushing, leakage, or the catheter looking longer or shorter than usual, contact your care team right away — these are not things this app evaluates.'
+    ),
+    (
       'What if I cannot see the insertion site clearly?',
-      'If the dressing is covering the insertion site or the photo is unclear, the app will ask you to retake it. Do not remove or change the dressing yourself — only a trained nurse should change catheter dressings.'
+      'If the dressing is covering the insertion site or the photo is unclear, the app will ask you to retake it. Do not remove or change the dressing yourself — only a trained nurse should change catheter dressings. If there is no transparent dressing available, the AI will not work properly, and you should contact your care team for guidance.'
     ),
     (
       'What does "Moderate Risk" mean for me?',
-      'Moderate risk means the AI detected some changes worth reviewing by your care team. You do not need to go to the ER. Your clinician will review the assessment and contact you if further action is needed. Continue your daily check-ins as normal.'
+      'This finding alone doesn\'t require emergency care. But this assessment doesn\'t override new or worsening symptoms — if you develop fever, chills, spreading redness, or just feel unwell, contact your care team or go to the ER regardless of this result.'
     ),
     (
       'What happens when my case is escalated?',
-      'When a moderate or high risk is detected, your case is sent to a clinician dashboard where your care team can review the image and assessment. They will decide on the appropriate next step — this could range from watchful waiting to requesting an in-person evaluation.'
+      'When a moderate or high risk is detected, your case is sent to a clinician dashboard where your care team can review the image in combination with your symptoms and perform an assessment. They will decide on the appropriate next step — this could range from watchful waiting to requesting an in-person evaluation.'
     ),
     (
       'Can I shower or bathe with a central line?',
