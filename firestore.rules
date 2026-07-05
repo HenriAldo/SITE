@@ -25,20 +25,32 @@ service cloud.firestore {
 
       // Registration write (AuthService.register / saveUserEmail).
       // Patients can never set their own role or clinician assignment.
-      allow create: if isOwner(userId) &&
-        !('role' in request.resource.data) &&
-        !('clinicianId' in request.resource.data);
+      // Clinicians may also create a patient record directly (UX-28
+      // add-patient flow) as long as it's assigned to themselves and
+      // doesn't set 'role'.
+      allow create: if
+        (isOwner(userId) &&
+          !('role' in request.resource.data) &&
+          !('clinicianId' in request.resource.data)) ||
+        (isClinician() &&
+          request.resource.data.clinicianId == request.auth.uid &&
+          !('role' in request.resource.data));
 
-      // Patients may update their own email/display_name/profile.
+      // Patients may update their own email/display_name/profile, and
+      // clear mustChangePassword once they've set a real password.
       // Clinicians may update profile (ProfileEditScreen) and clinicianId
-      // (assignPatientToClinician) on any patient document.
+      // (assignPatientToClinician) on any patient document, and their own
+      // clinician_contact (ClinicianProfileScreen) on their own document.
       allow update: if
         (isOwner(userId) &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['email', 'display_name', 'profile'])) ||
+            .hasOnly(['email', 'display_name', 'profile', 'mustChangePassword'])) ||
         (isClinician() &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['profile', 'clinicianId']));
+            .hasOnly(['profile', 'clinicianId'])) ||
+        (isOwner(userId) && isClinician() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['clinician_contact']));
 
       allow delete: if false;
 
@@ -66,6 +78,15 @@ service cloud.firestore {
           .hasOnly(['reviewed', 'reviewer_notes', 'reviewed_at', 'clinician_classification']);
 
       allow delete: if false;
+    }
+
+    match /reasoning_feedback/{feedbackId} {
+      // Write-only feedback channel — clinicians vote on AI reasoning
+      // quality; nothing in the app reads it back.
+      allow read: if false;
+      allow create: if isClinician() &&
+        request.resource.data.clinician_id == request.auth.uid;
+      allow update, delete: if false;
     }
 
     match /{document=**} {

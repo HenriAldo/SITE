@@ -376,116 +376,13 @@ class HomeScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Temporarily disabled — see _buildStreakSection below.
-        // _buildStreakSection(context),
-        // const SizedBox(height: 20),
+        // Temporarily disabled — uncomment to re-enable.
+        // if (FirebaseAuth.instance.currentUser?.uid case final userId?) ...[
+        //   StreakHistory(userId: userId),
+        //   const SizedBox(height: 20),
+        // ],
         _buildFaqButton(context),
       ],
-    );
-  }
-
-  Widget _buildStreakSection(BuildContext context) {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) return const SizedBox.shrink();
-
-    return StreamBuilder<List<Assessment>>(
-      stream: FirestoreService().assessmentStream(userId),
-      builder: (context, assessSnap) {
-        final assessments = assessSnap.data ?? [];
-
-        return StreamBuilder<List<FlaggedCase>>(
-          stream: FirestoreService().flaggedCasesForUser(userId),
-          builder: (context, flagSnap) {
-            final flaggedById = {
-              for (final f in flagSnap.data ?? []) f.id: f,
-            };
-
-            // One entry per local calendar day with a valid (central-line
-            // detected) submission, keeping the clinician's classification
-            // once reviewed. Assessments are newest-first, so the first
-            // match per day is the latest submission for that day.
-            final dayLevels = <DateTime, RiskLevel>{};
-            for (final a in assessments) {
-              if (!a.centralLineDetected) continue;
-              final day =
-                  DateTime(a.timestamp.year, a.timestamp.month, a.timestamp.day);
-              if (dayLevels.containsKey(day)) continue;
-              final flagged = flaggedById[a.id];
-              dayLevels[day] = flagged?.clinicianClassification ?? a.riskLevel;
-            }
-
-            final now = DateTime.now();
-            final today = DateTime(now.year, now.month, now.day);
-            bool hasSubmission(DateTime day) => dayLevels.containsKey(day);
-
-            // A streak breaks after one missed local-calendar day. "Today"
-            // isn't a miss until the day has actually passed, so start
-            // counting from today if it's done, otherwise from yesterday.
-            var cursor =
-                hasSubmission(today) ? today : today.subtract(const Duration(days: 1));
-            var streak = 0;
-            while (hasSubmission(cursor)) {
-              streak++;
-              cursor = cursor.subtract(const Duration(days: 1));
-            }
-
-            final days =
-                List.generate(14, (i) => today.subtract(Duration(days: 13 - i)));
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text('Check-in streak',
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const Spacer(),
-                    if (streak > 0) ...[
-                      const Icon(Icons.local_fire_department,
-                          color: Colors.deepOrange, size: 18),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$streak day${streak == 1 ? '' : 's'}',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Last 14 days',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: days
-                      .map((day) => Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 2),
-                              child: AspectRatio(
-                                aspectRatio: 1,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: dayLevels[day]?.color ??
-                                        AppColors.surface,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: dayLevels[day] == null
-                                        ? Border.all(color: AppColors.cardBorder)
-                                        : null,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ))
-                      .toList(),
-                ),
-              ],
-            );
-          },
-        );
-      },
     );
   }
 

@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'data/services/firestore_service.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/set_password_screen.dart';
 import 'features/clinician/clinician_dashboard_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/history/history_screen.dart';
@@ -68,14 +69,20 @@ class AuthGate extends StatelessWidget {
         if (!snapshot.hasData) {
           return const LoginScreen();
         }
-        // User is logged in — check their role
-        return FutureBuilder<String?>(
-          future: FirestoreService().getUserRole(snapshot.data!.uid),
-          builder: (context, roleSnap) {
-            if (roleSnap.connectionState == ConnectionState.waiting) {
+        // User is logged in — a live stream (not a one-off fetch) so the
+        // set-password screen can hand off to the app automatically once
+        // mustChangePassword clears, without needing its own navigation.
+        return StreamBuilder<Map<String, dynamic>?>(
+          stream: FirestoreService().userDocStream(snapshot.data!.uid),
+          builder: (context, userDocSnap) {
+            if (userDocSnap.connectionState == ConnectionState.waiting) {
               return const _LoadingScreen();
             }
-            if (roleSnap.data == 'clinician') {
+            final data = userDocSnap.data;
+            if (data?['mustChangePassword'] == true) {
+              return const SetPasswordScreen();
+            }
+            if (data?['role'] == 'clinician') {
               return const ClinicianDashboardScreen();
             }
             return const MainShell();

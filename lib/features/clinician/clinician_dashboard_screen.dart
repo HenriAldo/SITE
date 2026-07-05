@@ -8,6 +8,7 @@ import '../../data/services/firestore_service.dart';
 import '../../data/models/assessment.dart';
 import '../../shared/widgets/risk_badge.dart';
 import 'case_detail_screen.dart';
+import 'clinician_profile_screen.dart';
 import 'patients_screen.dart';
 
 class ClinicianDashboardScreen extends StatefulWidget {
@@ -70,9 +71,21 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
             },
           ),
           IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'My contact details',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ClinicianProfileScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout_outlined),
             tooltip: 'Sign out',
             onPressed: () => AuthService().signOut(),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 16, left: 4),
+            child: Image.asset('assets/images/Logo.png', height: 32),
           ),
         ],
         bottom: TabBar(
@@ -143,12 +156,28 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
             Expanded(
               child: cases.isEmpty
                   ? _buildEmptyState()
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(24),
-                      itemCount: cases.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, i) =>
-                          _buildCaseCard(context, cases[i]),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Cap card width on wide (web/tablet) screens so
+                        // cases form a grid instead of stretching edge to
+                        // edge; on narrow phones just use what's available.
+                        final available = constraints.maxWidth - 48;
+                        final cardWidth =
+                            available < 340 ? available : 340.0;
+                        return SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: Wrap(
+                            spacing: 16,
+                            runSpacing: 16,
+                            children: cases
+                                .map((c) => SizedBox(
+                                      width: cardWidth,
+                                      child: _buildCaseCard(context, c),
+                                    ))
+                                .toList(),
+                          ),
+                        );
+                      },
                     ),
             ),
           ],
@@ -244,8 +273,88 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
   }
 
   Widget _buildCaseCard(BuildContext context, FlaggedCase flaggedCase) {
-    final dateStr = DateFormat('d MMM yyyy — HH:mm')
-        .format(flaggedCase.timestamp);
+    return _CaseCard(flaggedCase: flaggedCase);
+  }
+}
+
+/// A single flagged-case card. Quick-classify taps only stage a pending
+/// selection locally — nothing is written to Firestore until the clinician
+/// taps the confirm checkmark, so a stray tap can't silently reclassify a
+/// patient's case.
+class _CaseCard extends StatefulWidget {
+  final FlaggedCase flaggedCase;
+
+  const _CaseCard({required this.flaggedCase});
+
+  @override
+  State<_CaseCard> createState() => _CaseCardState();
+}
+
+class _CaseCardState extends State<_CaseCard> {
+  late RiskLevel _pending;
+  bool _isConfirming = false;
+
+  RiskLevel get _persisted =>
+      widget.flaggedCase.clinicianClassification ?? widget.flaggedCase.riskLevel;
+
+  @override
+  void initState() {
+    super.initState();
+    _pending = _persisted;
+  }
+
+  @override
+  void didUpdateWidget(covariant _CaseCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Keep pending in sync with Firestore updates (e.g. confirmed from
+    // another device) as long as the clinician hasn't made an unconfirmed
+    // local pick on this card yet.
+    final oldPersisted =
+        oldWidget.flaggedCase.clinicianClassification ?? oldWidget.flaggedCase.riskLevel;
+    if (_pending == oldPersisted && _persisted != oldPersisted) {
+      _pending = _persisted;
+    }
+  }
+
+  bool get _isDirty => _pending != _persisted;
+
+  Future<void> _confirm() async {
+    setState(() => _isConfirming = true);
+    try {
+      await FirestoreService().markReviewed(
+        widget.flaggedCase.id,
+        widget.flaggedCase.reviewerNotes,
+        classification: _pending,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Confirmed as ${_pending.label} and marked reviewed'),
+            backgroundColor: AppColors.riskLow,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not save: $e'),
+            backgroundColor: AppColors.riskHigh,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isConfirming = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final flaggedCase = widget.flaggedCase;
+    final dateStr =
+        DateFormat('d MMM yyyy — HH:mm').format(flaggedCase.timestamp);
+    final hasImage =
+        flaggedCase.imageUrl != null && flaggedCase.imageUrl!.isNotEmpty;
 
     return InkWell(
       onTap: () => Navigator.push(
@@ -256,106 +365,229 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
       ),
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: flaggedCase.reviewed
                 ? AppColors.cardBorder
-                : flaggedCase.riskLevel.color.withOpacity(0.3),
+                : _persisted.color.withOpacity(0.3),
           ),
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            AspectRatio(
+              aspectRatio: 4 / 3,
+              child: hasImage
+                  ? Image.network(
+                      flaggedCase.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _imagePlaceholder(),
+                      loadingBuilder: (context, child, progress) =>
+                          progress == null
+                              ? child
+                              : Container(
+                                  color: AppColors.background,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                        color: AppColors.accent, strokeWidth: 2),
+                                  ),
+                                ),
+                    )
+                  : _imagePlaceholder(),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        flaggedCase.patientName,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      if (flaggedCase.patientAge != null &&
-                          flaggedCase.patientAge! > 0) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          '${flaggedCase.patientAge} y',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(fontSize: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              flaggedCase.patientName,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontSize: 14),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              dateStr,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(fontSize: 11),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                      RiskBadge(riskLevel: _persisted),
                     ],
                   ),
-                ),
-                RiskBadge(riskLevel: flaggedCase.riskLevel),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              dateStr,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            if (flaggedCase.visualFindings.isNotEmpty)
-              Text(
-                flaggedCase.visualFindings.first,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: AppColors.textPrimary, fontSize: 14),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                if (flaggedCase.reviewed) ...[
-                  const Icon(Icons.check_circle,
-                      size: 14, color: AppColors.riskLow),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Reviewed',
-                    style: TextStyle(
-                      color: AppColors.riskLow,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ] else ...[
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: flaggedCase.riskLevel.color,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Awaiting review',
-                    style: TextStyle(
-                      color: flaggedCase.riskLevel.color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  const SizedBox(height: 8),
+                  _buildQuickClassifyRow(),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      if (flaggedCase.reviewed) ...[
+                        const Icon(Icons.check_circle,
+                            size: 13, color: AppColors.riskLow),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Reviewed',
+                          style: TextStyle(
+                            color: AppColors.riskLow,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ] else ...[
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: _persisted.color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Awaiting review',
+                          style: TextStyle(
+                            color: _persisted.color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      const Spacer(),
+                      Icon(Icons.chevron_right,
+                          size: 16, color: AppColors.textSecondary),
+                    ],
                   ),
                 ],
-                const Spacer(),
-                Icon(Icons.chevron_right,
-                    size: 18, color: AppColors.textSecondary),
-              ],
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      color: AppColors.background,
+      child: Center(
+        child: Icon(Icons.image_not_supported_outlined,
+            color: AppColors.textSecondary, size: 32),
+      ),
+    );
+  }
+
+  Widget _buildQuickClassifyRow() {
+    if (widget.flaggedCase.reviewed) {
+      return _buildLockedClassification();
+    }
+    return Row(
+      children: [
+        Expanded(child: _quickClassifyChip(RiskLevel.low, 'Low')),
+        const SizedBox(width: 6),
+        Expanded(child: _quickClassifyChip(RiskLevel.moderate, 'Moderate')),
+        const SizedBox(width: 6),
+        Expanded(child: _quickClassifyChip(RiskLevel.high, 'High')),
+        const SizedBox(width: 6),
+        _buildConfirmButton(),
+      ],
+    );
+  }
+
+  // Once reviewed, the classification is locked — no more quick-select
+  // chips, just a confirmed indicator. Changing it again requires opening
+  // the case detail screen.
+  Widget _buildLockedClassification() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: _persisted.backgroundColor,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: _persisted.color.withOpacity(0.4)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.lock_outline, size: 12, color: _persisted.color),
+          const SizedBox(width: 6),
+          Text(
+            '${_persisted.label} — confirmed',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: _persisted.color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickClassifyChip(RiskLevel level, String label) {
+    final selected = _pending == level;
+    return GestureDetector(
+      onTap: () => setState(() => _pending = level),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? level.color : AppColors.background,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+              color: selected ? level.color : AppColors.cardBorder),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfirmButton() {
+    return GestureDetector(
+      onTap: (_isDirty && !_isConfirming) ? _confirm : null,
+      child: Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: _isDirty ? AppColors.accent : AppColors.background,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(
+              color: _isDirty ? AppColors.accent : AppColors.cardBorder),
+        ),
+        child: _isConfirming
+            ? const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              )
+            : Icon(
+                Icons.check,
+                size: 16,
+                color: _isDirty ? Colors.white : AppColors.textSecondary,
+              ),
       ),
     );
   }

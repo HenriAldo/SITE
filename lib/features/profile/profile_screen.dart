@@ -153,10 +153,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildCatheterCard(context, profile),
                   const SizedBox(height: 20),
                   _buildClinicalCard(context, profile),
-                  const SizedBox(height: 20),
-                  _buildCareTeamCard(context, profile),
                 ] else ...[
                   _buildNoProfileCard(context, profile),
+                ],
+                if (snapshot.connectionState != ConnectionState.waiting &&
+                    user != null) ...[
+                  const SizedBox(height: 20),
+                  _buildCareTeamCard(context, user),
                 ],
                 const SizedBox(height: 20),
                 _buildFaqSection(context),
@@ -291,6 +294,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       title: 'Catheter',
       icon: Icons.medical_services_outlined,
+      onEdit: () => _openEditScreen(context, profile),
       children: [
         _row(context, 'Type', profile.catheterType),
         _row(context, 'Inserted', insertedDate),
@@ -327,31 +331,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   // ── Care Team ─────────────────────────────────────────────────
 
-  Widget _buildCareTeamCard(BuildContext context, PatientProfile profile) {
-    final team = profile.careTeam;
-    final hasTeam = team != null && !team.isEmpty;
+  Widget _buildCareTeamCard(BuildContext context, User user) {
+    return FutureBuilder<ClinicianContact?>(
+      future: _fetchClinicianContact(user.uid),
+      builder: (context, snapshot) {
+        final team = snapshot.data;
+        final hasTeam = team != null && !team.isEmpty;
 
-    return _sectionCard(
-      context,
-      title: 'Care Team',
-      icon: Icons.groups_outlined,
-      onEdit: () => _openEditScreen(context, profile),
-      children: hasTeam
-          ? [
-              if (team!.clinicianName.isNotEmpty)
-                _row(context, 'Physician', team.clinicianName),
-              if (team.phone.isNotEmpty)
-                _row(context, 'Phone', team.phone),
-              if (team.clinic.isNotEmpty)
-                _row(context, 'Clinic', team.clinic),
-            ]
-          : [
-              Text(
-                'No care team added yet. Tap edit to add your treating physician and contact details.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
+        return _sectionCard(
+          context,
+          title: 'Care Team',
+          icon: Icons.groups_outlined,
+          children: hasTeam
+              ? [
+                  if (team!.clinicianName.isNotEmpty)
+                    _row(context, 'Physician', team.clinicianName),
+                  if (team.phone.isNotEmpty)
+                    _row(context, 'Phone', team.phone),
+                  if (team.clinic.isNotEmpty)
+                    _row(context, 'Clinic', team.clinic),
+                ]
+              : [
+                  Text(
+                    'Your clinician hasn\'t added their contact details yet.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+        );
+      },
     );
+  }
+
+  Future<ClinicianContact?> _fetchClinicianContact(String userId) async {
+    final clinicianId =
+        await FirestoreService().getAssignedClinicianId(userId);
+    if (clinicianId == null) return null;
+    return FirestoreService().getClinicianContact(clinicianId);
   }
 
   Widget _buildNoProfileCard(BuildContext context, PatientProfile? profile) {

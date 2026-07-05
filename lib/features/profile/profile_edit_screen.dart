@@ -44,11 +44,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   // Preserved as-is when the patient (not the clinician) is editing.
   String? _existingLastLabSummary;
 
-  // Care team fields
-  late TextEditingController _clinicianController;
-  late TextEditingController _phoneController;
-  late TextEditingController _clinicController;
-
   static const List<String> _catheterTypes = [
     'PICC',
     'Hickman',
@@ -70,12 +65,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _catheterType = p?.catheterType ?? 'PICC';
     _insertionDate = p?.insertionDate ?? DateTime.now();
     _isImmunosuppressed = p?.isImmunosuppressed ?? false;
-    _clinicianController =
-        TextEditingController(text: p?.careTeam?.clinicianName ?? '');
-    _phoneController =
-        TextEditingController(text: p?.careTeam?.phone ?? '');
-    _clinicController =
-        TextEditingController(text: p?.careTeam?.clinic ?? '');
   }
 
   @override
@@ -83,9 +72,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     _ageController.dispose();
     _diagnosisController.dispose();
     _comorbiditiesController.dispose();
-    _clinicianController.dispose();
-    _phoneController.dispose();
-    _clinicController.dispose();
     super.dispose();
   }
 
@@ -165,27 +151,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
                 if (_comorbiditiesController.text.isNotEmpty)
                   _readOnlyRow('Comorbidities', _comorbiditiesController.text),
               ],
-              const SizedBox(height: 24),
-              _sectionHeader('Care Team'),
-              const SizedBox(height: 12),
-              _buildTextField(
-                controller: _clinicianController,
-                label: 'Treating physician',
-                hint: 'e.g. Dr. Müller',
-              ),
-              const SizedBox(height: 14),
-              _buildTextField(
-                controller: _phoneController,
-                label: 'Care team phone',
-                hint: 'e.g. +49 89 1234 5678',
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 14),
-              _buildTextField(
-                controller: _clinicController,
-                label: 'Clinic / practice',
-                hint: 'e.g. Onkologie Station 4, LMU München',
-              ),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _isSaving ? null : _save,
@@ -338,11 +303,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       isImmunosuppressed: _isImmunosuppressed,
       comorbidities: comorbidities,
       lastLabSummary: _existingLastLabSummary,
-      careTeam: CareTeam(
-        clinicianName: _clinicianController.text.trim(),
-        phone: _phoneController.text.trim(),
-        clinic: _clinicController.text.trim(),
-      ),
     );
 
     // Save to target patient if set (clinician editing), otherwise own profile

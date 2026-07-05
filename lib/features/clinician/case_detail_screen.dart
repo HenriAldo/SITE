@@ -1,7 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
 import '../../data/services/firestore_service.dart';
@@ -21,6 +23,11 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
   bool _isSaving = false;
   late bool _reviewed;
   late RiskLevel _classification;
+  bool? _reasoningFeedback;
+
+  final SpeechToText _speech = SpeechToText();
+  bool _speechAvailable = false;
+  bool _isListening = false;
 
   @override
   void initState() {
@@ -29,12 +36,63 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
     _notesController.text = widget.flaggedCase.reviewerNotes;
     _classification = widget.flaggedCase.clinicianClassification ??
         widget.flaggedCase.riskLevel;
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    final available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          if (mounted) setState(() => _isListening = false);
+        }
+      },
+      onError: (_) {
+        if (mounted) setState(() => _isListening = false);
+      },
+    );
+    if (mounted) setState(() => _speechAvailable = available);
+  }
+
+  Future<void> _toggleListening() async {
+    if (!_speechAvailable) return;
+    if (_isListening) {
+      await _speech.stop();
+      if (mounted) setState(() => _isListening = false);
+      return;
+    }
+    setState(() => _isListening = true);
+    await _speech.listen(
+      onResult: (result) {
+        if (!mounted) return;
+        setState(() {
+          _notesController.text = result.recognizedWords;
+          _notesController.selection =
+              TextSelection.collapsed(offset: _notesController.text.length);
+        });
+      },
+    );
   }
 
   @override
   void dispose() {
+    if (_isListening) _speech.cancel();
     _notesController.dispose();
     super.dispose();
+  }
+
+  Future<void> _submitReasoningFeedback(bool positive) async {
+    setState(() => _reasoningFeedback = positive);
+    final clinicianId = FirebaseAuth.instance.currentUser?.uid;
+    if (clinicianId == null) return;
+    try {
+      await FirestoreService().submitReasoningFeedback(
+        caseId: widget.flaggedCase.id,
+        clinicianId: clinicianId,
+        positive: positive,
+      );
+    } catch (_) {
+      // Best-effort — feedback is a nice-to-have, don't disrupt the review.
+    }
   }
 
   @override
@@ -85,17 +143,15 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                 const SizedBox(height: 24),
                 _buildRiskCard(context),
                 const SizedBox(height: 20),
-                _buildFindingsCard(context),
+                _buildClassifyRow(context),
                 const SizedBox(height: 20),
-                _buildReasoningCard(context),
+                _buildNotesCard(context),
                 if (widget.flaggedCase.symptoms != null) ...[
                   const SizedBox(height: 20),
                   _buildSymptomsCard(context),
                 ],
                 const SizedBox(height: 20),
-                _buildClassifyRow(context),
-                const SizedBox(height: 20),
-                _buildNotesCard(context),
+                _buildReasoningCard(context),
                 const SizedBox(height: 28),
                 if (!_reviewed) _buildMarkReviewedButton(),
                 if (_reviewed) _buildReviewedBanner(context),
@@ -132,17 +188,15 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           ],
           _buildRiskCard(context),
           const SizedBox(height: 20),
-          _buildFindingsCard(context),
+          _buildClassifyRow(context),
           const SizedBox(height: 20),
-          _buildReasoningCard(context),
+          _buildNotesCard(context),
           if (widget.flaggedCase.symptoms != null) ...[
             const SizedBox(height: 20),
             _buildSymptomsCard(context),
           ],
           const SizedBox(height: 20),
-          _buildClassifyRow(context),
-          const SizedBox(height: 20),
-          _buildNotesCard(context),
+          _buildReasoningCard(context),
           const SizedBox(height: 28),
           if (!_reviewed) _buildMarkReviewedButton(),
           if (_reviewed) _buildReviewedBanner(context),
@@ -338,14 +392,30 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
     );
   }
 
-  Widget _buildFindingsCard(BuildContext context) {
+  Widget _buildReasoningCard(BuildContext context) {
     return _sectionCard(
       context,
-      title: 'Visual Findings',
-      icon: Icons.visibility_outlined,
+      title: 'AI Reasoning',
+      icon: Icons.psychology_outlined,
       child: Column(
-        children: widget.flaggedCase.visualFindings
-            .map(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.flaggedCase.reasoning,
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: AppColors.textPrimary, height: 1.6),
+          ),
+          if (widget.flaggedCase.visualFindings.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            Text('Visual findings',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: AppColors.textSecondary)),
+            const SizedBox(height: 8),
+            ...widget.flaggedCase.visualFindings.map(
               (f) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Row(
@@ -369,24 +439,64 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                   ],
                 ),
               ),
-            )
-            .toList(),
+            ),
+          ],
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          _buildReasoningFeedbackRow(context),
+        ],
       ),
     );
   }
 
-  Widget _buildReasoningCard(BuildContext context) {
-    return _sectionCard(
-      context,
-      title: 'AI Reasoning',
-      icon: Icons.psychology_outlined,
-      child: Text(
-        widget.flaggedCase.reasoning,
-        style: Theme.of(context)
-            .textTheme
-            .bodyMedium
-            ?.copyWith(color: AppColors.textPrimary, height: 1.6),
-      ),
+  Widget _buildReasoningFeedbackRow(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          'Was this reasoning helpful?',
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        const SizedBox(width: 12),
+        IconButton(
+          onPressed: () => _submitReasoningFeedback(true),
+          icon: Icon(
+            _reasoningFeedback == true
+                ? Icons.thumb_up
+                : Icons.thumb_up_outlined,
+            size: 18,
+            color: _reasoningFeedback == true
+                ? AppColors.riskLow
+                : AppColors.textSecondary,
+          ),
+          visualDensity: VisualDensity.compact,
+        ),
+        IconButton(
+          onPressed: () => _submitReasoningFeedback(false),
+          icon: Icon(
+            _reasoningFeedback == false
+                ? Icons.thumb_down
+                : Icons.thumb_down_outlined,
+            size: 18,
+            color: _reasoningFeedback == false
+                ? AppColors.riskHigh
+                : AppColors.textSecondary,
+          ),
+          visualDensity: VisualDensity.compact,
+        ),
+        if (_reasoningFeedback != null) ...[
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              'Thanks — this will be sent to us to improve the model.',
+              style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -526,17 +636,43 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                   .bodyMedium
                   ?.copyWith(color: AppColors.textPrimary),
             )
-          : TextField(
-              controller: _notesController,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText:
-                    'Add your clinical assessment, decision, or follow-up plan...',
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-              ),
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _notesController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText:
+                        'Add your clinical assessment, decision, or follow-up plan...',
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    filled: false,
+                    suffixIcon: _speechAvailable
+                        ? IconButton(
+                            tooltip:
+                                _isListening ? 'Stop dictation' : 'Dictate notes',
+                            icon: Icon(
+                              _isListening ? Icons.mic : Icons.mic_none,
+                              color: _isListening
+                                  ? AppColors.accent
+                                  : AppColors.textSecondary,
+                            ),
+                            onPressed: _toggleListening,
+                          )
+                        : null,
+                  ),
+                ),
+                if (_isListening)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Listening…',
+                      style: TextStyle(color: AppColors.accent, fontSize: 12),
+                    ),
+                  ),
+              ],
             ),
     );
   }

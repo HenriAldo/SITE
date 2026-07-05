@@ -1,8 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
+import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../profile/profile_edit_screen.dart';
+import 'patient_detail_screen.dart';
 
 class PatientsScreen extends StatefulWidget {
   const PatientsScreen({super.key});
@@ -15,12 +18,29 @@ class _PatientsScreenState extends State<PatientsScreen> {
   late Future<List<PatientSummary>> _patientsFuture;
   bool _showMyOnly = true;
   String? _assigningUserId;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
   String get _clinicianId => FirebaseAuth.instance.currentUser!.uid;
 
   @override
   void initState() {
     super.initState();
     _patientsFuture = _fetchPatients();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<PatientSummary> _applySearch(List<PatientSummary> patients) {
+    if (_searchQuery.isEmpty) return patients;
+    return patients
+        .where((p) =>
+            p.name.toLowerCase().contains(_searchQuery) ||
+            p.email.toLowerCase().contains(_searchQuery))
+        .toList();
   }
 
   Future<List<PatientSummary>> _fetchPatients() => _showMyOnly
@@ -63,45 +83,248 @@ class _PatientsScreenState extends State<PatientsScreen> {
     }
   }
 
+  Future<void> _openAddPatientDialog() async {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Add patient'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(labelText: 'Patient name'),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Please enter a name' : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                decoration: const InputDecoration(labelText: 'Patient email'),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Please enter an email';
+                  if (!v.contains('@')) return 'Please enter a valid email';
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await _createPatient(
+      name: nameController.text.trim(),
+      email: emailController.text.trim(),
+    );
+  }
+
+  Future<void> _createPatient({
+    required String name,
+    required String email,
+  }) async {
+    final tempPassword = AuthService().generateTempPassword();
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.accent),
+      ),
+    );
+
+    try {
+      final uid = await AuthService().createPatientAuthAccount(
+        email: email,
+        password: tempPassword,
+      );
+      await FirestoreService().createPatientRecord(
+        uid,
+        email: email,
+        displayName: name,
+        clinicianId: _clinicianId,
+      );
+      if (mounted) Navigator.pop(context); // close loading dialog
+      await _load();
+      if (mounted) _showTempPasswordDialog(name, email, tempPassword);
+    } on FirebaseAuthException catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AuthService.errorMessage(e)),
+            backgroundColor: AppColors.riskHigh,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not create patient: $e'),
+            backgroundColor: AppColors.riskHigh,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showTempPasswordDialog(String name, String email, String tempPassword) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Patient added'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$name ($email) can now sign in with:'),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.cardBorder),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      tempPassword,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_outlined, size: 18),
+                    tooltip: 'Copy password',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: tempPassword));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Copied to clipboard')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Hand this password to the patient in person. They\'ll be asked '
+              'to set their own password the first time they sign in.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patients'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add_alt_outlined),
+            tooltip: 'Add patient',
+            onPressed: _openAddPatientDialog,
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: _buildFilterBar(),
         ),
       ),
-      body: FutureBuilder<List<PatientSummary>>(
-        future: _patientsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
-            );
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) =>
+                  setState(() => _searchQuery = v.trim().toLowerCase()),
+              decoration: InputDecoration(
+                hintText: 'Search by name or email…',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<List<PatientSummary>>(
+              future: _patientsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppColors.accent),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
 
-          final patients = snapshot.data ?? [];
+                final patients = _applySearch(snapshot.data ?? []);
 
-          return RefreshIndicator(
-            onRefresh: _load,
-            color: AppColors.accent,
-            child: patients.isEmpty
-                ? _buildEmpty(context)
-                : ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(24),
-                    itemCount: patients.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, i) =>
-                        _buildPatientCard(context, patients[i]),
-                  ),
-          );
-        },
+                return RefreshIndicator(
+                  onRefresh: _load,
+                  color: AppColors.accent,
+                  child: patients.isEmpty
+                      ? _buildEmpty(context)
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(24),
+                          itemCount: patients.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, i) =>
+                              _buildPatientCard(context, patients[i]),
+                        ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -164,22 +387,29 @@ class _PatientsScreenState extends State<PatientsScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.people_outline,
+              Icon(
+                  _searchQuery.isNotEmpty
+                      ? Icons.search_off
+                      : Icons.people_outline,
                   size: 48, color: AppColors.textSecondary),
               const SizedBox(height: 16),
               Text(
-                _showMyOnly
-                    ? 'No patients assigned to you'
-                    : 'No patients registered yet',
+                _searchQuery.isNotEmpty
+                    ? 'No patients match your search'
+                    : _showMyOnly
+                        ? 'No patients assigned to you'
+                        : 'No patients registered yet',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: AppColors.textSecondary,
                     ),
               ),
               const SizedBox(height: 8),
               Text(
-                _showMyOnly
-                    ? 'Switch to "All Patients" to find and assign patients to yourself.'
-                    : 'Patients appear here once they register\nand log in to the app.',
+                _searchQuery.isNotEmpty
+                    ? 'Try a different name or email.'
+                    : _showMyOnly
+                        ? 'Switch to "All Patients" to find and assign patients to yourself.'
+                        : 'Patients appear here once they register\nand log in to the app.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
@@ -205,7 +435,15 @@ class _PatientsScreenState extends State<PatientsScreen> {
     final age = profile?.age;
     final hasAge = age != null && age > 0;
 
-    return Container(
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PatientDetailScreen(patient: patient),
+        ),
+      ),
+      child: Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -337,6 +575,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
             ],
           ),
         ],
+      ),
       ),
     );
   }

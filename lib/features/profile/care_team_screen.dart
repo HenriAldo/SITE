@@ -9,15 +9,21 @@ import '../../data/services/firestore_service.dart';
 class CareTeamScreen extends StatelessWidget {
   const CareTeamScreen({super.key});
 
+  Future<ClinicianContact?> _fetchClinicianContact(String userId) async {
+    final clinicianId = await FirestoreService().getAssignedClinicianId(userId);
+    if (clinicianId == null) return null;
+    return FirestoreService().getClinicianContact(clinicianId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Contact Care Team')),
-      body: FutureBuilder<PatientProfile?>(
+      body: FutureBuilder<ClinicianContact?>(
         future: userId != null
-            ? FirestoreService().getProfile(userId)
+            ? _fetchClinicianContact(userId)
             : Future.value(null),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -26,7 +32,7 @@ class CareTeamScreen extends StatelessWidget {
             );
           }
 
-          final team = snapshot.data?.careTeam;
+          final team = snapshot.data;
           final hasTeam = team != null && !team.isEmpty;
 
           return SingleChildScrollView(
@@ -80,7 +86,7 @@ class CareTeamScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildContactCard(BuildContext context, CareTeam team) {
+  Widget _buildContactCard(BuildContext context, ClinicianContact team) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -145,14 +151,14 @@ class CareTeamScreen extends StatelessWidget {
               color: AppColors.textSecondary, size: 36),
           const SizedBox(height: 12),
           Text(
-            'No care team added yet',
+            'No care team contact yet',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.textSecondary,
                 ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Add your care team contact details in your profile so you can reach them quickly.',
+            'Your clinician hasn\'t added their contact details yet.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium,
           ),

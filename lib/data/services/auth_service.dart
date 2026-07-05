@@ -1,4 +1,6 @@
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'firestore_service.dart';
 
 class AuthService {
@@ -42,6 +44,44 @@ class AuthService {
 
   Future<void> sendPasswordReset(String email) async {
     await _auth.sendPasswordResetEmail(email: email.trim());
+  }
+
+  // Creates a Firebase Auth account for a patient the clinician is adding.
+  // Uses a throwaway secondary FirebaseApp so createUserWithEmailAndPassword
+  // doesn't sign out / replace the clinician's own session (the Firebase
+  // Auth SDK always signs in as the just-created user on the app instance
+  // that created it).
+  Future<String> createPatientAuthAccount({
+    required String email,
+    required String password,
+  }) async {
+    final secondaryApp = await Firebase.initializeApp(
+      name: 'patientCreation_${DateTime.now().microsecondsSinceEpoch}',
+      options: Firebase.app().options,
+    );
+    try {
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+      final credential = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final uid = credential.user!.uid;
+      await secondaryAuth.signOut();
+      return uid;
+    } finally {
+      await secondaryApp.delete();
+    }
+  }
+
+  static const _tempPasswordChars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+
+  // Excludes visually ambiguous characters (0/O, 1/l/I) since this is read
+  // aloud or copied by hand from clinician to patient.
+  String generateTempPassword({int length = 10}) {
+    final rand = Random.secure();
+    return List.generate(
+        length, (_) => _tempPasswordChars[rand.nextInt(_tempPasswordChars.length)])
+        .join();
   }
 
   Future<void> signOut() async {

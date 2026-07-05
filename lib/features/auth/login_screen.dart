@@ -96,6 +96,8 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             autocorrect: false,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => _submit(),
             decoration: const InputDecoration(
               labelText: 'Email address',
               prefixIcon: Icon(Icons.mail_outline, size: 18),
@@ -110,6 +112,8 @@ class _LoginScreenState extends State<LoginScreen> {
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submit(),
             decoration: InputDecoration(
               labelText: 'Password',
               prefixIcon: const Icon(Icons.lock_outline, size: 18),

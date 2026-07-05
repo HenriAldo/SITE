@@ -7,7 +7,6 @@ class PatientProfile {
   final bool isImmunosuppressed;
   final List<String> comorbidities;
   final String? lastLabSummary;
-  final CareTeam? careTeam;
 
   const PatientProfile({
     required this.name,
@@ -18,7 +17,6 @@ class PatientProfile {
     required this.isImmunosuppressed,
     this.comorbidities = const [],
     this.lastLabSummary,
-    this.careTeam,
   });
 
   int get daysSinceInsertion =>
@@ -45,9 +43,6 @@ class PatientProfile {
       isImmunosuppressed: json['immunosuppressed'] ?? false,
       comorbidities: List<String>.from(json['comorbidities'] ?? []),
       lastLabSummary: json['last_lab_summary'],
-      careTeam: json['care_team'] != null
-          ? CareTeam.fromJson(Map<String, dynamic>.from(json['care_team']))
-          : null,
     );
   }
 
@@ -60,7 +55,6 @@ class PatientProfile {
         'immunosuppressed': isImmunosuppressed,
         'comorbidities': comorbidities,
         'last_lab_summary': lastLabSummary,
-        'care_team': careTeam?.toJson(),
       };
 
   PatientProfile copyWith({
@@ -72,7 +66,6 @@ class PatientProfile {
     bool? isImmunosuppressed,
     List<String>? comorbidities,
     String? lastLabSummary,
-    CareTeam? careTeam,
   }) {
     return PatientProfile(
       name: name ?? this.name,
@@ -83,17 +76,19 @@ class PatientProfile {
       isImmunosuppressed: isImmunosuppressed ?? this.isImmunosuppressed,
       comorbidities: comorbidities ?? this.comorbidities,
       lastLabSummary: lastLabSummary ?? this.lastLabSummary,
-      careTeam: careTeam ?? this.careTeam,
     );
   }
 }
 
-class CareTeam {
+/// A clinician's own contact details — stored once per clinician and
+/// looked up via the patient's assigned clinicianId, so updating it
+/// automatically propagates to every patient the clinician is treating.
+class ClinicianContact {
   final String clinicianName;
   final String phone;
   final String clinic;
 
-  const CareTeam({
+  const ClinicianContact({
     this.clinicianName = '',
     this.phone = '',
     this.clinic = '',
@@ -102,7 +97,8 @@ class CareTeam {
   bool get isEmpty =>
       clinicianName.isEmpty && phone.isEmpty && clinic.isEmpty;
 
-  factory CareTeam.fromJson(Map<String, dynamic> json) => CareTeam(
+  factory ClinicianContact.fromJson(Map<String, dynamic> json) =>
+      ClinicianContact(
         clinicianName: json['clinician_name'] ?? '',
         phone: json['phone'] ?? '',
         clinic: json['clinic'] ?? '',

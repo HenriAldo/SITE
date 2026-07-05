@@ -151,6 +151,22 @@ class FirestoreService {
     });
   }
 
+  // Write-only feedback channel — clinicians vote on whether the AI's
+  // reasoning was helpful. Nothing in the app reads this back; it's
+  // collected for the dev/research team to review model quality.
+  Future<void> submitReasoningFeedback({
+    required String caseId,
+    required String clinicianId,
+    required bool positive,
+  }) async {
+    await _db.collection('reasoning_feedback').add({
+      'case_id': caseId,
+      'clinician_id': clinicianId,
+      'vote': positive,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
   FlaggedCase? _flaggedCaseFromDoc(
       QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     try {
@@ -232,11 +248,40 @@ class FirestoreService {
             .toList());
   }
 
-  // ── User Role ─────────────────────────────────────────────────
+  // ── User Role / Auth Gate ──────────────────────────────────────
 
-  Future<String?> getUserRole(String userId) async {
-    final doc = await _db.collection('users').doc(userId).get();
-    return doc.data()?['role'] as String?;
+  // Drives AuthGate: role (patient vs clinician) and the forced
+  // set-password flag both live on this doc, so a single stream lets
+  // AuthGate react the instant either one changes.
+  Stream<Map<String, dynamic>?> userDocStream(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .map((doc) => doc.data());
+  }
+
+  // ── Clinician-created patients (one-time-password onboarding) ──
+
+  Future<void> createPatientRecord(
+    String patientId, {
+    required String email,
+    required String displayName,
+    required String clinicianId,
+  }) async {
+    await _db.collection('users').doc(patientId).set({
+      'email': email,
+      'display_name': displayName,
+      'clinicianId': clinicianId,
+      'mustChangePassword': true,
+    });
+  }
+
+  Future<void> clearMustChangePassword(String userId) async {
+    await _db.collection('users').doc(userId).set(
+      {'mustChangePassword': false},
+      SetOptions(merge: true),
+    );
   }
 
   // ── Patient List (clinician) ──────────────────────────────────
@@ -302,6 +347,33 @@ class FirestoreService {
       {'clinicianId': clinicianId},
       SetOptions(merge: true),
     );
+  }
+
+  Future<String?> getAssignedClinicianId(String patientId) async {
+    final doc = await _db.collection('users').doc(patientId).get();
+    return doc.data()?['clinicianId'] as String?;
+  }
+
+  // ── Clinician Contact (own profile, looked up by patients) ────
+
+  Future<void> saveClinicianContact(
+      String clinicianId, ClinicianContact contact) async {
+    await _db.collection('users').doc(clinicianId).set(
+      {'clinician_contact': contact.toJson()},
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<ClinicianContact?> getClinicianContact(String clinicianId) async {
+    final doc = await _db.collection('users').doc(clinicianId).get();
+    final data = doc.data();
+    if (data == null || data['clinician_contact'] == null) return null;
+    try {
+      return ClinicianContact.fromJson(
+          Map<String, dynamic>.from(data['clinician_contact']));
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> saveUserEmail(String userId, String email,
