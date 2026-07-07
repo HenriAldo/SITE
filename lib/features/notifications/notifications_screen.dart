@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
 import '../../data/services/firestore_service.dart';
-import '../../data/services/notification_prefs.dart';
 import '../../shared/widgets/risk_badge.dart';
 import '../history/entry_detail_screen.dart';
 
@@ -24,6 +23,48 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _lastSeenLoading = false;
   bool _wroteNewSeen = false;
 
+  // Cases opened during this visit — cleared immediately on tap so the
+  // border updates the moment the patient returns from the detail screen,
+  // rather than staying "new" until the whole notifications screen is
+  // reopened.
+  final Set<String> _viewedIds = {};
+
+  Set<String> _dismissedIds = {};
+  bool _dismissedLoaded = false;
+
+  // Captured in didChangeDependencies (not dispose — by then the context
+  // is deactivated and .of(context) throws) so the delete/undo snackbar
+  // doesn't linger after leaving this screen.
+  ScaffoldMessengerState? _messenger;
+
+  @override
+  void initState() {
+    super.initState();
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId != null) {
+      FirestoreService().getDismissedNotificationIds(userId).then((ids) {
+        if (mounted) {
+          setState(() {
+            _dismissedIds = ids;
+            _dismissedLoaded = true;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _messenger = ScaffoldMessenger.of(context);
+  }
+
+  @override
+  void dispose() {
+    _messenger?.clearSnackBars();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid;
@@ -32,57 +73,75 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(title: const Text('Notifications')),
       body: userId == null
           ? const Center(child: Text('Not signed in'))
-          : StreamBuilder<List<Assessment>>(
-              stream: FirestoreService().assessmentStream(userId),
-              builder: (context, assessSnap) {
-                final assessments = assessSnap.data ?? [];
-                final byId = {for (final a in assessments) a.id: a};
+          : !_dismissedLoaded
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.accent))
+              : StreamBuilder<List<Assessment>>(
+                  stream: FirestoreService().assessmentStream(userId),
+                  builder: (context, assessSnap) {
+                    final assessments = assessSnap.data ?? [];
+                    final byId = {for (final a in assessments) a.id: a};
 
-                return StreamBuilder<List<FlaggedCase>>(
-                  stream: FirestoreService().flaggedCasesForUser(userId),
-                  builder: (context, flagSnap) {
-                    final reviewed = (flagSnap.data ?? [])
-                        .where((f) => f.reviewed && f.reviewedAt != null)
-                        .toList()
-                      ..sort((a, b) => b.reviewedAt!.compareTo(a.reviewedAt!));
+                    return StreamBuilder<List<FlaggedCase>>(
+                      stream: FirestoreService().flaggedCasesForUser(userId),
+                      builder: (context, flagSnap) {
+                        final reviewed = (flagSnap.data ?? [])
+                            .where((f) => f.reviewed && f.reviewedAt != null)
+                            .toList()
+                          ..sort((a, b) => b.reviewedAt!.compareTo(a.reviewedAt!));
 
-                    _syncSeenState(userId, reviewed);
+                        _syncSeenState(userId, reviewed);
 
-                    if (reviewed.isEmpty) return _buildEmpty(context);
+                        final visible = reviewed
+                            .where((f) => !_dismissedIds.contains(f.id))
+                            .toList();
 
-                    return ListView.separated(
-                      padding: const EdgeInsets.all(24),
-                      itemCount: reviewed.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final flagged = reviewed[index];
-                        final assessment = byId[flagged.id];
-                        final level =
-                            flagged.clinicianClassification ?? flagged.riskLevel;
-                        final isNew = _lastSeenAtOpen == null ||
-                            flagged.reviewedAt!.isAfter(_lastSeenAtOpen!);
+                        if (visible.isEmpty) return _buildEmpty(context);
 
-                        return _buildTile(
-                          context,
-                          level: level,
-                          reviewedAt: flagged.reviewedAt!,
-                          isNew: isNew,
-                          onTap: assessment == null
-                              ? null
-                              : () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => EntryDetailScreen(
-                                          assessment: assessment),
-                                    ),
-                                  ),
+                        return ListView.separated(
+                          padding: const EdgeInsets.all(24),
+                          itemCount: visible.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final flagged = visible[index];
+                            final assessment = byId[flagged.id];
+                            final level = flagged.clinicianClassification ??
+                                flagged.riskLevel;
+                            final isNew = !_viewedIds.contains(flagged.id) &&
+                                (_lastSeenAtOpen == null ||
+                                    flagged.reviewedAt!.isAfter(_lastSeenAtOpen!));
+
+                            return Dismissible(
+                              key: ValueKey(flagged.id),
+                              direction: DismissDirection.endToStart,
+                              background: _buildDismissBackground(),
+                              onDismissed: (_) =>
+                                  _dismissNotification(userId, flagged),
+                              child: _buildTile(
+                                context,
+                                level: level,
+                                reviewedAt: flagged.reviewedAt!,
+                                isNew: isNew,
+                                onTap: assessment == null
+                                    ? null
+                                    : () {
+                                        setState(() => _viewedIds.add(flagged.id));
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => EntryDetailScreen(
+                                                assessment: assessment),
+                                          ),
+                                        );
+                                      },
+                              ),
+                            );
+                          },
                         );
                       },
                     );
                   },
-                );
-              },
-            ),
+                ),
     );
   }
 
@@ -95,7 +154,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (!_lastSeenLoaded) {
       if (_lastSeenLoading) return;
       _lastSeenLoading = true;
-      NotificationPrefs.getLastSeen(userId).then((lastSeen) {
+      FirestoreService().getNotificationsLastSeen(userId).then((lastSeen) {
         if (!mounted) return;
         setState(() {
           _lastSeenAtOpen = lastSeen;
@@ -107,7 +166,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (_wroteNewSeen || reviewed.isEmpty) return;
     _wroteNewSeen = true;
-    NotificationPrefs.setLastSeen(userId, reviewed.first.reviewedAt!);
+    FirestoreService()
+        .setNotificationsLastSeen(userId, reviewed.first.reviewedAt!);
+  }
+
+  Future<void> _dismissNotification(String userId, FlaggedCase flagged) async {
+    setState(() => _dismissedIds = {..._dismissedIds, flagged.id});
+    await FirestoreService().setDismissedNotificationIds(userId, _dismissedIds);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Notification deleted'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            setState(() => _dismissedIds = {..._dismissedIds}..remove(flagged.id));
+            await FirestoreService()
+                .setDismissedNotificationIds(userId, _dismissedIds);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDismissBackground() {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20),
+      decoration: BoxDecoration(
+        color: AppColors.riskHigh,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Icon(Icons.delete_outline, color: Colors.white, size: 22),
+    );
   }
 
   Widget _buildTile(

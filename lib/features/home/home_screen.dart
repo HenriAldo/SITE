@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/assessment.dart';
 import '../../data/services/firestore_service.dart';
-import '../../data/services/notification_prefs.dart';
 import '../../shared/widgets/risk_badge.dart';
 import '../assessment/guided_capture_screen.dart';
 import '../history/entry_detail_screen.dart';
@@ -402,7 +401,8 @@ class HomeScreen extends StatelessWidget {
 }
 
 /// Bell icon showing a dot when the clinician has reviewed a check-in the
-/// patient hasn't seen yet. Purely local (SharedPreferences) — no push
+/// patient hasn't seen yet. Read-state lives on the user's Firestore doc
+/// (not local storage) so it stays in sync across devices — no push
 /// infrastructure required.
 class _NotificationBell extends StatefulWidget {
   const _NotificationBell();
@@ -425,7 +425,7 @@ class _NotificationBellState extends State<_NotificationBell> {
             .toList();
 
         return FutureBuilder<DateTime?>(
-          future: NotificationPrefs.getLastSeen(userId),
+          future: FirestoreService().getNotificationsLastSeen(userId),
           builder: (context, lastSeenSnap) {
             final lastSeen = lastSeenSnap.data;
             final hasUnread = reviewed.any(

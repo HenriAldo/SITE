@@ -36,15 +36,18 @@ service cloud.firestore {
           request.resource.data.clinicianId == request.auth.uid &&
           !('role' in request.resource.data));
 
-      // Patients may update their own email/display_name/profile, and
-      // clear mustChangePassword once they've set a real password.
+      // Patients may update their own email/display_name/profile, clear
+      // mustChangePassword once they've set a real password, and update
+      // their own notification read-state (last-seen timestamp + dismissed
+      // IDs) so it syncs across devices instead of living in local storage.
       // Clinicians may update profile (ProfileEditScreen) and clinicianId
       // (assignPatientToClinician) on any patient document, and their own
       // clinician_contact (ClinicianProfileScreen) on their own document.
       allow update: if
         (isOwner(userId) &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['email', 'display_name', 'profile', 'mustChangePassword'])) ||
+            .hasOnly(['email', 'display_name', 'profile', 'mustChangePassword',
+              'notifications_last_seen', 'dismissed_notification_ids'])) ||
         (isClinician() &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['profile', 'clinicianId'])) ||

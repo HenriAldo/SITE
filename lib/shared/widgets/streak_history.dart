@@ -9,8 +9,18 @@ import '../../data/services/firestore_service.dart';
 /// and the clinician's patient detail screen.
 class StreakHistory extends StatelessWidget {
   final String userId;
+  /// Height of each day box. Lower = more compact (e.g. clinician detail).
+  final double boxHeight;
+  /// When provided, filled day boxes are tappable and call this with that
+  /// day's assessment (e.g. to open its check-in detail).
+  final void Function(Assessment assessment)? onDayTap;
 
-  const StreakHistory({super.key, required this.userId});
+  const StreakHistory({
+    super.key,
+    required this.userId,
+    this.boxHeight = 40,
+    this.onDayTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +41,7 @@ class StreakHistory extends StatelessWidget {
             // once reviewed. Assessments are newest-first, so the first
             // match per day is the latest submission for that day.
             final dayLevels = <DateTime, RiskLevel>{};
+            final dayAssessments = <DateTime, Assessment>{};
             for (final a in assessments) {
               if (!a.centralLineDetected) continue;
               final day =
@@ -38,6 +49,7 @@ class StreakHistory extends StatelessWidget {
               if (dayLevels.containsKey(day)) continue;
               final flagged = flaggedById[a.id];
               dayLevels[day] = flagged?.clinicianClassification ?? a.riskLevel;
+              dayAssessments[day] = a;
             }
 
             final now = DateTime.now();
@@ -87,26 +99,29 @@ class StreakHistory extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Row(
-                  children: days
-                      .map((day) => Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 2),
-                              child: AspectRatio(
-                                aspectRatio: 1,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: dayLevels[day]?.color ??
-                                        AppColors.surface,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: dayLevels[day] == null
-                                        ? Border.all(color: AppColors.cardBorder)
-                                        : null,
-                                  ),
-                                ),
-                              ),
+                  children: days.map((day) {
+                    final assessment = dayAssessments[day];
+                    final tappable = onDayTap != null && assessment != null;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: GestureDetector(
+                          onTap: tappable ? () => onDayTap!(assessment) : null,
+                          child: Container(
+                            height: boxHeight,
+                            decoration: BoxDecoration(
+                              color:
+                                  dayLevels[day]?.color ?? AppColors.surface,
+                              borderRadius: BorderRadius.circular(4),
+                              border: dayLevels[day] == null
+                                  ? Border.all(color: AppColors.cardBorder)
+                                  : null,
                             ),
-                          ))
-                      .toList(),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ],
             );

@@ -71,18 +71,20 @@ class EntryDetailScreen extends StatelessWidget {
       future: FirestoreService().getFlaggedCase(assessment.id),
       builder: (context, snap) {
         final flagged = snap.data;
-        final effectiveLevel =
-            flagged?.clinicianClassification ?? assessment.riskLevel;
-        final hasClinician = flagged?.clinicianClassification != null;
         final reviewed = flagged?.reviewed ?? false;
-        return _statusCard(context, effectiveLevel,
-            clinicianOverride: hasClinician, reviewed: reviewed);
+        // Only surface the clinician's classification once the case is
+        // actually reviewed — otherwise the status and the clinician-review
+        // section can disagree ("confirmed" vs "awaiting").
+        final effectiveLevel = reviewed
+            ? (flagged?.clinicianClassification ?? assessment.riskLevel)
+            : assessment.riskLevel;
+        return _statusCard(context, effectiveLevel, reviewed: reviewed);
       },
     );
   }
 
   Widget _statusCard(BuildContext context, RiskLevel level,
-      {required bool clinicianOverride, required bool reviewed}) {
+      {required bool reviewed}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -95,7 +97,7 @@ class EntryDetailScreen extends StatelessWidget {
         children: [
           RiskBadge(riskLevel: level, large: true),
           const SizedBox(width: 12),
-          if (clinicianOverride)
+          if (reviewed)
             Expanded(
               child: Text(
                 'Confirmed by your clinician',
@@ -104,7 +106,7 @@ class EntryDetailScreen extends StatelessWidget {
                     fontSize: 12, color: level.color, fontWeight: FontWeight.w500),
               ),
             )
-          else if (!reviewed)
+          else
             Expanded(
               child: Text(
                 'Not yet checked by a clinician',
@@ -218,7 +220,7 @@ class EntryDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              SelectableText(
                 assessment.patientMessage,
                 style: Theme.of(context)
                     .textTheme
@@ -247,7 +249,7 @@ class EntryDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(f,
+                          child: SelectableText(f,
                               style: Theme.of(context).textTheme.bodyMedium),
                         ),
                       ],
@@ -263,7 +265,7 @@ class EntryDetailScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
-                Text(
+                SelectableText(
                   assessment.reasoning,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.textSecondary, fontSize: 13),

@@ -9,7 +9,6 @@ import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
 import 'care_team_screen.dart';
 import 'faq_screen.dart';
-import 'profile_edit_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -86,21 +85,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (result != null && result.isNotEmpty) {
       await _user?.updateDisplayName(result);
+      // The clinician's patient list reads users/{uid}.display_name in
+      // Firestore, not Firebase Auth's own displayName — keep both in sync
+      // so patients are identified by name rather than falling back to email.
+      if (_user != null) {
+        await FirestoreService().updateDisplayName(_user!.uid, result);
+      }
       // Reload user so displayName is fresh
       await FirebaseAuth.instance.currentUser?.reload();
       if (mounted) setState(() {});
     }
   }
 
-  Future<void> _openEditScreen(BuildContext context, PatientProfile? profile) async {
-    final saved = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProfileEditScreen(existing: profile),
-      ),
-    );
-    if (saved == true && mounted) setState(() {});
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -200,25 +196,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: AppColors.accent, size: 28),
           ),
           const SizedBox(width: 16),
+          // Whole name + email block opens the name editor.
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Tappable name row
-                GestureDetector(
-                  onTap: () => _editName(context),
-                  child: Row(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _editName(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        hasName ? user!.displayName! : 'Add your name',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: hasName
-                                  ? AppColors.textPrimary
-                                  : AppColors.textSecondary,
-                              fontStyle: hasName
-                                  ? FontStyle.normal
-                                  : FontStyle.italic,
-                            ),
+                      Flexible(
+                        child: Text(
+                          hasName ? user!.displayName! : 'Add your name',
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: hasName
+                                        ? AppColors.textPrimary
+                                        : AppColors.textSecondary,
+                                    fontStyle: hasName
+                                        ? FontStyle.normal
+                                        : FontStyle.italic,
+                                  ),
+                        ),
                       ),
                       const SizedBox(width: 6),
                       Icon(
@@ -228,13 +228,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  user?.email ?? '—',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    user?.email ?? '—',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -294,7 +294,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       title: 'Catheter',
       icon: Icons.medical_services_outlined,
-      onEdit: () => _openEditScreen(context, profile),
       children: [
         _row(context, 'Type', profile.catheterType),
         _row(context, 'Inserted', insertedDate),

@@ -25,15 +25,20 @@ class AuthService {
   Future<UserCredential> register({
     required String email,
     required String password,
+    required String displayName,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
-    // Store email in Firestore so clinicians can identify patients
+    await credential.user?.updateDisplayName(displayName);
+    // Store name + email in Firestore — this is what the clinician side
+    // reads to identify patients, so it must be set from the very first
+    // sign-up rather than left for the patient to fill in later.
     await FirestoreService().saveUserEmail(
       credential.user!.uid,
       email.trim(),
+      displayName: displayName,
     );
     // Best-effort — registration should still succeed if this fails
     try {

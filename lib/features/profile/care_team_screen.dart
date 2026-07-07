@@ -47,8 +47,6 @@ class CareTeamScreen extends StatelessWidget {
                 ] else ...[
                   _buildNoTeamCard(context),
                 ],
-                const SizedBox(height: 20),
-                _buildEmergencyCard(context),
               ],
             ),
           );
@@ -66,21 +64,30 @@ class CareTeamScreen extends StatelessWidget {
         border:
             Border.all(color: AppColors.riskHigh.withOpacity(0.3)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.emergency_outlined,
-              color: AppColors.riskHigh, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'If you have fever above 38°C or severe chills, go to the emergency room immediately — do not wait.',
-              style: TextStyle(
-                color: AppColors.riskHigh.withOpacity(0.9),
-                fontSize: 13,
-                height: 1.5,
+          Row(
+            children: [
+              const Icon(Icons.emergency_outlined,
+                  color: AppColors.riskHigh, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'If you have fever above 38°C or severe chills, go to the emergency room immediately — do not wait.',
+                  style: TextStyle(
+                    color: AppColors.riskHigh.withOpacity(0.9),
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.riskHigh.withOpacity(0.2)),
+          const SizedBox(height: 12),
+          _build116117Notice(context),
         ],
       ),
     );
@@ -139,6 +146,7 @@ class CareTeamScreen extends StatelessWidget {
 
   Widget _buildNoTeamCard(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -167,42 +175,34 @@ class CareTeamScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEmergencyCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _build116117Notice(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _call(context, '116117'),
+      child: Row(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.emergency_outlined,
-                  size: 16, color: AppColors.riskHigh),
-              const SizedBox(width: 8),
-              Text('Emergency',
-                  style: Theme.of(context).textTheme.titleMedium),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          _contactRow(
-            context,
-            icon: Icons.local_hospital_outlined,
-            label: 'Patient service',
-            value: '116117',
-            phoneNumber: '116117',
-          ),
-          Text(
-            'In a medical emergency call 116117 or go directly to the nearest emergency room.',
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(fontSize: 12, height: 1.5),
+          Icon(Icons.phone_outlined, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(fontSize: 12, color: AppColors.textSecondary),
+                children: [
+                  const TextSpan(text: 'In doubt? Call '),
+                  TextSpan(
+                    text: '116117',
+                    style: TextStyle(
+                      color: AppColors.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const TextSpan(
+                      text: ' — the patient service in Germany.'),
+                ],
+              ),
+            ),
           ),
         ],
       ),

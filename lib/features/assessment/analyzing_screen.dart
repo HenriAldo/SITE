@@ -66,10 +66,20 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
   Future<void> _runAnalysis() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
+    // users/{uid}.display_name in Firestore is the name the clinician side
+    // reads — fall back to Firebase Auth's displayName only if that's unset
+    // (e.g. a legacy account), so patient records stay identified by name.
+    final displayName = userId != null
+        ? await FirestoreService().getDisplayName(userId)
+        : '';
+    final resolvedName = displayName.isNotEmpty
+        ? displayName
+        : FirebaseAuth.instance.currentUser?.displayName ?? '';
+
     final profile = userId != null
         ? await FirestoreService().getProfile(userId) ??
             PatientProfile(
-              name: FirebaseAuth.instance.currentUser?.displayName ?? '',
+              name: resolvedName,
               age: 0,
               catheterType: 'Unknown',
               insertionDate: DateTime.now(),
@@ -121,7 +131,7 @@ class _AnalyzingScreenState extends State<AnalyzingScreen>
         await FirestoreService().saveAssessment(
           userId,
           assessmentWithExtras,
-          patientName: FirebaseAuth.instance.currentUser?.displayName ?? '',
+          patientName: resolvedName,
           patientEmail: FirebaseAuth.instance.currentUser?.email ?? '',
           patientAge: profile.age > 0 ? profile.age : null,
         );

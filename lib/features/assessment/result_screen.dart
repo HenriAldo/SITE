@@ -98,7 +98,7 @@ class ResultScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.cardBorder),
           ),
-          child: Text(
+          child: SelectableText(
             assessment.patientMessage,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   height: 1.6,

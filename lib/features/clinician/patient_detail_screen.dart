@@ -4,21 +4,75 @@ import '../../core/theme/app_colors.dart';
 import '../../data/models/patient_profile.dart';
 import '../../data/services/firestore_service.dart';
 import '../../shared/widgets/streak_history.dart';
+import '../history/entry_detail_screen.dart';
+import '../profile/profile_edit_screen.dart';
 
 /// Clinician-facing detail page for a single patient: their check-in
 /// history (same design as the patient app's Home streak) plus the basic
 /// facts already shown in the patient list overview.
-class PatientDetailScreen extends StatelessWidget {
+class PatientDetailScreen extends StatefulWidget {
   final PatientSummary patient;
+  /// When shown in a side pane (master-detail) rather than pushed as its
+  /// own route — suppresses the back button.
+  final bool embedded;
 
-  const PatientDetailScreen({super.key, required this.patient});
+  const PatientDetailScreen({
+    super.key,
+    required this.patient,
+    this.embedded = false,
+  });
+
+  @override
+  State<PatientDetailScreen> createState() => _PatientDetailScreenState();
+}
+
+class _PatientDetailScreenState extends State<PatientDetailScreen> {
+  PatientProfile? _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _profile = widget.patient.profile;
+  }
+
+  Future<void> _editProfile() async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProfileEditScreen(
+          existing: _profile,
+          targetUserId: widget.patient.userId,
+          patientLabel: widget.patient.name,
+        ),
+      ),
+    );
+    if (saved == true) {
+      final refreshed =
+          await FirestoreService().getProfile(widget.patient.userId);
+      if (mounted) setState(() => _profile = refreshed);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final profile = patient.profile;
+    final profile = _profile;
+    final age = profile?.age ?? 0;
+    final title = age > 0
+        ? '${widget.patient.name}, $age y'
+        : widget.patient.name;
 
     return Scaffold(
-      appBar: AppBar(title: Text(patient.name)),
+      appBar: AppBar(
+        automaticallyImplyLeading: !widget.embedded,
+        title: Text(title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit patient profile',
+            onPressed: _editProfile,
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -31,7 +85,16 @@ class PatientDetailScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: AppColors.cardBorder),
               ),
-              child: StreakHistory(userId: patient.userId),
+              child: StreakHistory(
+                userId: widget.patient.userId,
+                boxHeight: 26,
+                onDayTap: (assessment) => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EntryDetailScreen(assessment: assessment),
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 28),
             Text('Patient details',

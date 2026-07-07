@@ -1,12 +1,12 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
 import '../../data/models/assessment.dart';
+import '../../shared/utils/time_ago.dart';
 import '../../shared/widgets/risk_badge.dart';
+import '../../shared/widgets/skeleton.dart';
 import 'case_detail_screen.dart';
 import 'clinician_profile_screen.dart';
 import 'patients_screen.dart';
@@ -19,39 +19,64 @@ class ClinicianDashboardScreen extends StatefulWidget {
       _ClinicianDashboardScreenState();
 }
 
-class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
-    with SingleTickerProviderStateMixin {
+class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen> {
   bool _showReviewed = false;
-  late final TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
+  // Null = show all risk levels; otherwise only cases at this level.
+  RiskLevel? _riskFilter;
+  int _index = 0;
+  // Currently-open case in the wide-screen master-detail side pane.
+  FlaggedCase? _selectedCase;
+  final ScrollController _listScrollController = ScrollController();
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _listScrollController.dispose();
     super.dispose();
   }
 
+  void _selectCase(FlaggedCase c) {
+    setState(() => _selectedCase = c);
+    // Selected case is pinned to the top of the list — jump there so it's
+    // visible without the clinician having to scroll manually.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_listScrollController.hasClients) {
+        _listScrollController.jumpTo(0);
+      }
+    });
+  }
+
+  static const _riskGroupOrder = [
+    RiskLevel.high,
+    RiskLevel.moderate,
+    RiskLevel.low,
+    RiskLevel.undetected,
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final email = FirebaseAuth.instance.currentUser?.email ?? '';
+    final content = IndexedStack(
+      index: _index,
+      children: [
+        _buildFlaggedTab(),
+        const PatientsScreen(),
+      ],
+    );
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        backgroundColor: AppColors.accent.withValues(alpha: 0.10),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('SITE — Clinician Dashboard'),
+            const Icon(Icons.remove_red_eye_outlined,
+                color: AppColors.accent, size: 22),
+            const SizedBox(width: 8),
             Text(
-              email,
+              'SITE',
               style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.normal,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1,
               ),
             ),
           ],
@@ -83,29 +108,67 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
             tooltip: 'Sign out',
             onPressed: () => AuthService().signOut(),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16, left: 4),
-            child: Image.asset('assets/images/Logo.png', height: 32),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.accent,
-          labelColor: AppColors.accent,
-          unselectedLabelColor: AppColors.textSecondary,
-          tabs: const [
-            Tab(icon: Icon(Icons.flag_outlined, size: 18), text: 'Flagged Cases'),
-            Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Patients'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildFlaggedTab(),
-          const PatientsScreen(),
         ],
       ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Wide (web/tablet): left rail; narrow (phone): bottom bar.
+          if (constraints.maxWidth >= 900) {
+            return Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: _index,
+                  onDestinationSelected: (i) => setState(() => _index = i),
+                  labelType: NavigationRailLabelType.all,
+                  backgroundColor: AppColors.surface,
+                  // Explicit indicator color — without it, the selection
+                  // pill defaults close enough to the accent icon color on
+                  // top of it that the selected icon disappears into it.
+                  indicatorColor: AppColors.accent.withValues(alpha: 0.15),
+                  selectedIconTheme:
+                      const IconThemeData(color: AppColors.accent),
+                  unselectedIconTheme:
+                      IconThemeData(color: AppColors.textSecondary),
+                  selectedLabelTextStyle:
+                      const TextStyle(color: AppColors.accent),
+                  unselectedLabelTextStyle:
+                      TextStyle(color: AppColors.textSecondary),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.flag_outlined),
+                      label: Text('Flagged'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.people_outline),
+                      label: Text('Patients'),
+                    ),
+                  ],
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: content),
+              ],
+            );
+          }
+          return content;
+        },
+      ),
+      bottomNavigationBar: MediaQuery.of(context).size.width >= 900
+          ? null
+          : BottomNavigationBar(
+              currentIndex: _index,
+              onTap: (i) => setState(() => _index = i),
+              selectedItemColor: AppColors.accent,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.flag_outlined),
+                  label: 'Flagged',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.people_outline),
+                  label: 'Patients',
+                ),
+              ],
+            ),
     );
   }
 
@@ -114,9 +177,7 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
       stream: FirestoreService().flaggedCasesStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.accent),
-          );
+          return _buildSkeletonGrid();
         }
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
@@ -132,23 +193,20 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
           });
         }
 
-        final cases = _showReviewed
+        var cases = _showReviewed
             ? all
             : all.where((c) => !c.reviewed).toList();
+        if (_riskFilter != null) {
+          cases = cases.where((c) => c.riskLevel == _riskFilter).toList();
+        }
 
-        // Sort: high → moderate → low → undetected, then newest first
-        final riskOrder = {
-          RiskLevel.high: 0,
-          RiskLevel.moderate: 1,
-          RiskLevel.low: 2,
-          RiskLevel.undetected: 3,
-        };
-        cases.sort((a, b) {
-          final riskCmp =
-              (riskOrder[a.riskLevel] ?? 3).compareTo(riskOrder[b.riskLevel] ?? 3);
-          if (riskCmp != 0) return riskCmp;
-          return b.timestamp.compareTo(a.timestamp);
-        });
+        // Keep the open side-pane case in sync with the latest stream data.
+        final selected = _selectedCase == null
+            ? null
+            : all.cast<FlaggedCase?>().firstWhere(
+                  (c) => c?.id == _selectedCase!.id,
+                  orElse: () => null,
+                );
 
         return Column(
           children: [
@@ -158,23 +216,83 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
                   ? _buildEmptyState()
                   : LayoutBuilder(
                       builder: (context, constraints) {
-                        // Cap card width on wide (web/tablet) screens so
-                        // cases form a grid instead of stretching edge to
-                        // edge; on narrow phones just use what's available.
+                        // Wide, nothing selected: fill the whole width with
+                        // the grid rather than a narrow list + placeholder.
+                        if (constraints.maxWidth >= 760 && selected == null) {
+                          final cardWidth =
+                              constraints.maxWidth - 48 < 340
+                                  ? constraints.maxWidth - 48
+                                  : 340.0;
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: _buildRiskGroups(
+                                cases,
+                                cardWidth,
+                                onOpen: _selectCase,
+                              ),
+                            ),
+                          );
+                        }
+                        // Wide, something selected: master-detail (list
+                        // left, detail right), selected case pinned to top
+                        // of the list with its photo hidden (already shown
+                        // large in the detail pane).
+                        if (constraints.maxWidth >= 760) {
+                          final rest =
+                              cases.where((c) => c.id != selected!.id).toList();
+                          return Row(
+                            children: [
+                              SizedBox(
+                                width: 400,
+                                child: SingleChildScrollView(
+                                  controller: _listScrollController,
+                                  padding: const EdgeInsets.all(20),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // Pinned to the top of the list; its
+                                      // photo is hidden since it's already
+                                      // shown large in the detail pane.
+                                      _buildCaseCard(
+                                        context,
+                                        selected!,
+                                        onOpen: () => _selectCase(selected),
+                                        selected: true,
+                                        hidePhoto: true,
+                                      ),
+                                      const SizedBox(height: 20),
+                                      ..._buildRiskGroups(
+                                        rest,
+                                        double.infinity,
+                                        onOpen: _selectCase,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const VerticalDivider(width: 1),
+                              Expanded(
+                                child: CaseDetailScreen(
+                                  key: ValueKey(selected.id),
+                                  flaggedCase: selected,
+                                  embedded: true,
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+                        // Narrow: grid of cards that push the detail screen.
                         final available = constraints.maxWidth - 48;
                         final cardWidth =
                             available < 340 ? available : 340.0;
                         return SingleChildScrollView(
                           padding: const EdgeInsets.all(24),
-                          child: Wrap(
-                            spacing: 16,
-                            runSpacing: 16,
-                            children: cases
-                                .map((c) => SizedBox(
-                                      width: cardWidth,
-                                      child: _buildCaseCard(context, c),
-                                    ))
-                                .toList(),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: _buildRiskGroups(cases, cardWidth),
                           ),
                         );
                       },
@@ -186,8 +304,63 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
     );
   }
 
+  // Groups cases under risk-level section headers (high → undetected),
+  // newest first within each group.
+  List<Widget> _buildRiskGroups(List<FlaggedCase> cases, double cardWidth,
+      {void Function(FlaggedCase)? onOpen, String? selectedId}) {
+    final widgets = <Widget>[];
+    for (final level in _riskGroupOrder) {
+      final group = cases.where((c) => c.riskLevel == level).toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      if (group.isEmpty) continue;
+
+      widgets.add(Padding(
+        padding: EdgeInsets.only(top: widgets.isEmpty ? 0 : 20, bottom: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration:
+                  BoxDecoration(color: level.color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${level.label} (${group.length})',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
+      ));
+      widgets.add(Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        children: group
+            .map((c) => SizedBox(
+                  width: cardWidth,
+                  child: _buildCaseCard(
+                    context,
+                    c,
+                    onOpen: onOpen == null ? null : () => onOpen(c),
+                    selected: selectedId != null && c.id == selectedId,
+                  ),
+                ))
+            .toList(),
+      ));
+    }
+    return widgets;
+  }
+
   Widget _buildFilterBar(List<FlaggedCase> all, bool hasReviewed) {
-    final pending = all.where((c) => !c.reviewed).length;
+    final pending = all.where((c) => !c.reviewed).toList();
+    final high = pending.where((c) => c.riskLevel == RiskLevel.high).length;
+    final mod = pending.where((c) => c.riskLevel == RiskLevel.moderate).length;
+    final low = pending.where((c) => c.riskLevel == RiskLevel.low).length;
+    final patients = all.map((c) => c.userId).toSet().length;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -196,55 +369,125 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
       ),
       child: Row(
         children: [
-          _buildStatChip(pending),
-          const Spacer(),
-          if (hasReviewed)
-            Row(
+          Expanded(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Text(
-                  'Show reviewed',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(fontSize: 13),
-                ),
-                const SizedBox(width: 8),
-                Switch(
-                  value: _showReviewed,
-                  onChanged: (v) => setState(() => _showReviewed = v),
-                  activeColor: AppColors.accent,
-                ),
+                if (high > 0) _countPill('$high high pending', AppColors.riskHigh),
+                if (mod > 0)
+                  _countPill('$mod moderate pending', AppColors.riskModerate),
+                if (low > 0) _countPill('$low low pending', AppColors.riskLow),
+                if (high + mod + low == 0)
+                  _countPill('All reviewed', AppColors.riskLow),
+                _plainPill('$patients patient${patients == 1 ? '' : 's'}'),
               ],
             ),
+          ),
+          _riskFilterChip(RiskLevel.high, 'High'),
+          const SizedBox(width: 6),
+          _riskFilterChip(RiskLevel.moderate, 'Moderate'),
+          const SizedBox(width: 6),
+          _riskFilterChip(RiskLevel.low, 'Low'),
+          if (hasReviewed) ...[
+            const SizedBox(width: 12),
+            Text(
+              'Show reviewed',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(fontSize: 13),
+            ),
+            const SizedBox(width: 4),
+            Switch(
+              value: _showReviewed,
+              onChanged: (v) => setState(() => _showReviewed = v),
+              activeColor: AppColors.accent,
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildStatChip(int pending) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: pending > 0
-            ? AppColors.riskModerateBg
-            : AppColors.riskLowBg,
-        borderRadius: BorderRadius.circular(100),
-        border: Border.all(
-          color: pending > 0
-              ? AppColors.riskModerate.withOpacity(0.4)
-              : AppColors.riskLow.withOpacity(0.4),
+  Widget _riskFilterChip(RiskLevel level, String label) {
+    final selected = _riskFilter == level;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _riskFilter = selected ? null : level;
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? level.color : Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+              color: selected ? level.color : AppColors.cardBorder),
         ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _countPill(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
-        '$pending pending review',
+        label,
         style: TextStyle(
-          color: pending > 0
-              ? AppColors.riskModerate
-              : AppColors.riskLow,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
+            color: color, fontSize: 12, fontWeight: FontWeight.w600),
       ),
+    );
+  }
+
+  Widget _plainPill(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: AppColors.cardBorder),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth - 48;
+        final cardWidth = available < 340 ? available : 340.0;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: List.generate(
+              4,
+              (_) => SizedBox(width: cardWidth, child: const SkeletonCaseCard()),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -272,8 +515,14 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
     );
   }
 
-  Widget _buildCaseCard(BuildContext context, FlaggedCase flaggedCase) {
-    return _CaseCard(flaggedCase: flaggedCase);
+  Widget _buildCaseCard(BuildContext context, FlaggedCase flaggedCase,
+      {VoidCallback? onOpen, bool selected = false, bool hidePhoto = false}) {
+    return _CaseCard(
+      flaggedCase: flaggedCase,
+      onOpen: onOpen,
+      selected: selected,
+      hidePhoto: hidePhoto,
+    );
   }
 }
 
@@ -283,8 +532,20 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen>
 /// patient's case.
 class _CaseCard extends StatefulWidget {
   final FlaggedCase flaggedCase;
+  /// Opening action — select in a side pane (wide) or push (narrow).
+  final VoidCallback? onOpen;
+  /// Highlighted as the currently-open case in master-detail mode.
+  final bool selected;
+  /// Hides the thumbnail — used when the same photo is already shown large
+  /// in the detail pane, so the pinned "selected" list entry doesn't repeat it.
+  final bool hidePhoto;
 
-  const _CaseCard({required this.flaggedCase});
+  const _CaseCard({
+    required this.flaggedCase,
+    this.onOpen,
+    this.selected = false,
+    this.hidePhoto = false,
+  });
 
   @override
   State<_CaseCard> createState() => _CaseCardState();
@@ -320,17 +581,29 @@ class _CaseCardState extends State<_CaseCard> {
 
   Future<void> _confirm() async {
     setState(() => _isConfirming = true);
+    // Captured before the write so Undo can restore the exact prior state.
+    final caseId = widget.flaggedCase.id;
+    final priorClassification = widget.flaggedCase.clinicianClassification;
+    final confirmedLevel = _pending;
     try {
       await FirestoreService().markReviewed(
-        widget.flaggedCase.id,
+        caseId,
         widget.flaggedCase.reviewerNotes,
-        classification: _pending,
+        classification: confirmedLevel,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Confirmed as ${_pending.label} and marked reviewed'),
+            content: Text('Confirmed as ${confirmedLevel.label} and marked reviewed'),
             backgroundColor: AppColors.riskLow,
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: Colors.white,
+              onPressed: () => FirestoreService().revertReview(
+                caseId,
+                classification: priorClassification,
+              ),
+            ),
           ),
         );
       }
@@ -351,33 +624,54 @@ class _CaseCardState extends State<_CaseCard> {
   @override
   Widget build(BuildContext context) {
     final flaggedCase = widget.flaggedCase;
-    final dateStr =
-        DateFormat('d MMM yyyy — HH:mm').format(flaggedCase.timestamp);
+    final dateStr = timeAgo(flaggedCase.timestamp);
     final hasImage =
         flaggedCase.imageUrl != null && flaggedCase.imageUrl!.isNotEmpty;
 
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => CaseDetailScreen(flaggedCase: flaggedCase),
-        ),
-      ),
+      onTap: widget.onOpen ??
+          () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CaseDetailScreen(flaggedCase: flaggedCase),
+                ),
+              ),
       borderRadius: BorderRadius.circular(14),
       child: Container(
+        // Border painted on the outer, unclipped box; content is clipped
+        // separately below via ClipRRect. Keeping clipping and border
+        // painting on the same Container can leave a visible seam at the
+        // rounded corners where a flush-edge child (like the high-risk
+        // stripe) meets the radius.
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: flaggedCase.reviewed
-                ? AppColors.cardBorder
-                : _persisted.color.withOpacity(0.3),
+            color: widget.selected
+                ? AppColors.accent
+                : flaggedCase.reviewed
+                    ? AppColors.cardBorder
+                    : _persisted.color.withOpacity(0.3),
+            width: widget.selected ? 2 : 1,
           ),
         ),
-        clipBehavior: Clip.antiAlias,
+        child: ClipRRect(
+        borderRadius: BorderRadius.circular(13),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (!flaggedCase.reviewed && _persisted == RiskLevel.high)
+              Container(
+                height: 4,
+                decoration: const BoxDecoration(
+                  color: AppColors.riskHigh,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(13),
+                    topRight: Radius.circular(13),
+                  ),
+                ),
+              ),
+            if (!widget.hidePhoto)
             AspectRatio(
               aspectRatio: 4 / 3,
               child: hasImage
@@ -431,6 +725,8 @@ class _CaseCardState extends State<_CaseCard> {
                     ],
                   ),
                   const SizedBox(height: 8),
+                  _buildSymptomSummary(context),
+                  const SizedBox(height: 8),
                   _buildQuickClassifyRow(),
                   const SizedBox(height: 8),
                   Row(
@@ -458,7 +754,7 @@ class _CaseCardState extends State<_CaseCard> {
                         ),
                         const SizedBox(width: 5),
                         Text(
-                          'Awaiting review',
+                          'Awaiting · ${elapsedShort(flaggedCase.timestamp)}',
                           style: TextStyle(
                             color: _persisted.color,
                             fontSize: 11,
@@ -476,6 +772,7 @@ class _CaseCardState extends State<_CaseCard> {
             ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -487,6 +784,48 @@ class _CaseCardState extends State<_CaseCard> {
         child: Icon(Icons.image_not_supported_outlined,
             color: AppColors.textSecondary, size: 32),
       ),
+    );
+  }
+
+  // Compact one-line summary of the patient-reported symptoms so the
+  // clinician can quick-classify without opening the detail screen.
+  Widget _buildSymptomSummary(BuildContext context) {
+    final s = widget.flaggedCase.symptoms;
+    final reported = s == null
+        ? <String>[]
+        : [
+            if (s.hasFever) 'Fever',
+            if (s.hasChills) 'Chills',
+            if (s.hasPain) 'Pain',
+            if (s.hasRedness) 'Redness',
+            if (s.hasSwelling) 'Swelling',
+            if (s.hasDrainage) 'Discharge',
+            ...s.extraSymptoms,
+          ];
+
+    final String text;
+    if (s == null) {
+      text = 'No symptom data';
+    } else if (!s.hasSymptoms || reported.isEmpty) {
+      text = 'No symptoms reported';
+    } else {
+      text = reported.join(', ');
+    }
+
+    return Row(
+      children: [
+        Icon(Icons.monitor_heart_outlined,
+            size: 13, color: AppColors.textSecondary),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 

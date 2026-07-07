@@ -112,8 +112,13 @@ class HistoryScreen extends StatelessWidget {
     final dateStr =
         DateFormat('d MMM yyyy — HH:mm').format(assessment.timestamp);
     final reviewed = flagged?.reviewed ?? false;
-    final effectiveLevel = flagged?.clinicianClassification ?? assessment.riskLevel;
-    final hasClinicianOverride = flagged?.clinicianClassification != null;
+    // Only reflect the clinician's classification once the case is reviewed,
+    // so the badge/level and the "reviewed" indicator stay consistent.
+    final effectiveLevel = reviewed
+        ? (flagged?.clinicianClassification ?? assessment.riskLevel)
+        : assessment.riskLevel;
+    final hasClinicianOverride =
+        reviewed && flagged?.clinicianClassification != null;
 
     return InkWell(
       borderRadius: BorderRadius.circular(14),

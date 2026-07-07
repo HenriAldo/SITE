@@ -2,8 +2,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
+import '../../data/models/assessment.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/firestore_service.dart';
+import '../../shared/utils/time_ago.dart';
+import '../../shared/widgets/skeleton.dart';
 import '../profile/profile_edit_screen.dart';
 import 'patient_detail_screen.dart';
 
@@ -18,6 +21,13 @@ class _PatientsScreenState extends State<PatientsScreen> {
   late Future<List<PatientSummary>> _patientsFuture;
   bool _showMyOnly = true;
   String? _assigningUserId;
+  // userId -> number of open (unreviewed) flagged cases.
+  Map<String, int> _openCases = {};
+  // Selected patient shown in the wide-screen master-detail pane.
+  PatientSummary? _selected;
+  // Cached per-patient so typing in the search box (a setState on every
+  // keystroke) doesn't re-fire a Firestore query per visible card.
+  final Map<String, Future<List<Assessment>>> _lastCheckInFutures = {};
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String get _clinicianId => FirebaseAuth.instance.currentUser!.uid;
@@ -43,13 +53,25 @@ class _PatientsScreenState extends State<PatientsScreen> {
         .toList();
   }
 
-  Future<List<PatientSummary>> _fetchPatients() => _showMyOnly
-      ? FirestoreService().getMyPatients(_clinicianId)
-      : FirestoreService().getPatients();
+  Future<List<PatientSummary>> _fetchPatients() async {
+    _openCases = await FirestoreService().getOpenFlaggedCounts();
+    final patients = _showMyOnly
+        ? await FirestoreService().getMyPatients(_clinicianId)
+        : await FirestoreService().getPatients();
+    // Needs-attention first: most open cases, then alphabetical.
+    patients.sort((a, b) {
+      final oa = _openCases[a.userId] ?? 0;
+      final ob = _openCases[b.userId] ?? 0;
+      if (oa != ob) return ob.compareTo(oa);
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return patients;
+  }
 
   Future<void> _load() async {
     setState(() {
       _patientsFuture = _fetchPatients();
+      _lastCheckInFutures.clear();
     });
     // Await so that RefreshIndicator spins until data lands
     await _patientsFuture;
@@ -262,22 +284,9 @@ class _PatientsScreenState extends State<PatientsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Patients'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_alt_outlined),
-            tooltip: 'Add patient',
-            onPressed: _openAddPatientDialog,
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: _buildFilterBar(),
-        ),
-      ),
       body: Column(
         children: [
+          _buildFilterBar(),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
             child: TextField(
@@ -297,8 +306,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
               future: _patientsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: AppColors.accent),
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(24),
+                    itemCount: 5,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (_, __) => const SkeletonBox(height: 96, radius: 14),
                   );
                 }
                 if (snapshot.hasError) {
@@ -306,20 +318,69 @@ class _PatientsScreenState extends State<PatientsScreen> {
                 }
 
                 final patients = _applySearch(snapshot.data ?? []);
+                if (patients.isEmpty) {
+                  return RefreshIndicator(
+                    onRefresh: _load,
+                    color: AppColors.accent,
+                    child: _buildEmpty(context),
+                  );
+                }
 
-                return RefreshIndicator(
-                  onRefresh: _load,
-                  color: AppColors.accent,
-                  child: patients.isEmpty
-                      ? _buildEmpty(context)
-                      : ListView.separated(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.all(24),
-                          itemCount: patients.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 12),
-                          itemBuilder: (context, i) =>
-                              _buildPatientCard(context, patients[i]),
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 720;
+
+                    // Keep the open detail pane in sync with refreshed data.
+                    PatientSummary? sel;
+                    if (wide && _selected != null) {
+                      for (final p in patients) {
+                        if (p.userId == _selected!.userId) {
+                          sel = p;
+                          break;
+                        }
+                      }
+                      sel ??= _selected;
+                    }
+
+                    final list = RefreshIndicator(
+                      onRefresh: _load,
+                      color: AppColors.accent,
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(24),
+                        itemCount: patients.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, i) => _buildPatientCard(
+                          context,
+                          patients[i],
+                          onOpen: wide
+                              ? () => setState(() => _selected = patients[i])
+                              : null,
+                          selected:
+                              wide && sel?.userId == patients[i].userId,
                         ),
+                      ),
+                    );
+
+                    // Nothing selected: fill the whole width with the list
+                    // rather than a narrow column + placeholder.
+                    if (!wide || sel == null) return list;
+
+                    return Row(
+                      children: [
+                        SizedBox(width: 400, child: list),
+                        const VerticalDivider(width: 1),
+                        Expanded(
+                          child: PatientDetailScreen(
+                            key: ValueKey(sel.userId),
+                            patient: sel,
+                            embedded: true,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
             ),
@@ -331,15 +392,22 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
   Widget _buildFilterBar() {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.divider)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _filterChip('My Patients', true),
           const SizedBox(width: 8),
           _filterChip('All Patients', false),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: _openAddPatientDialog,
+            icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+            label: const Text('Add patient'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.accent),
+          ),
         ],
       ),
     );
@@ -408,11 +476,19 @@ class _PatientsScreenState extends State<PatientsScreen> {
                 _searchQuery.isNotEmpty
                     ? 'Try a different name or email.'
                     : _showMyOnly
-                        ? 'Switch to "All Patients" to find and assign patients to yourself.'
-                        : 'Patients appear here once they register\nand log in to the app.',
+                        ? 'Add a patient, or switch to "All Patients" to find and assign existing ones.'
+                        : 'Add your first patient to start monitoring.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
+              if (_searchQuery.isEmpty) ...[
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _openAddPatientDialog,
+                  icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+                  label: const Text('Add patient'),
+                ),
+              ],
             ],
           ),
         ),
@@ -420,7 +496,12 @@ class _PatientsScreenState extends State<PatientsScreen> {
     );
   }
 
-  Widget _buildPatientCard(BuildContext context, PatientSummary patient) {
+  Widget _buildPatientCard(
+    BuildContext context,
+    PatientSummary patient, {
+    VoidCallback? onOpen,
+    bool selected = false,
+  }) {
     final profile = patient.profile;
     final profileComplete = patient.hasProfile &&
         profile != null &&
@@ -434,24 +515,29 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
     final age = profile?.age;
     final hasAge = age != null && age > 0;
+    final openCount = _openCases[patient.userId] ?? 0;
 
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PatientDetailScreen(patient: patient),
-        ),
-      ),
+      onTap: onOpen ??
+          () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PatientDetailScreen(patient: patient),
+                ),
+              ),
       child: Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: profileComplete
-              ? AppColors.cardBorder
-              : AppColors.accent.withOpacity(0.3),
+          color: selected
+              ? AppColors.accent
+              : profileComplete
+                  ? AppColors.cardBorder
+                  : AppColors.accent.withOpacity(0.3),
+          width: selected ? 2 : 1,
         ),
       ),
       child: Column(
@@ -489,7 +575,15 @@ class _PatientsScreenState extends State<PatientsScreen> {
                   ],
                 ),
               ),
-              _assignmentBadge(isMyPatient, isAssignedElsewhere),
+              if (openCount > 0) ...[
+                _openCasesBadge(openCount),
+                const SizedBox(width: 8),
+              ],
+              // My Patients: inline edit; others: assignment status.
+              if (isMyPatient)
+                _inlineEditButton(context, patient, profileComplete)
+              else
+                _assignmentBadge(isMyPatient, isAssignedElsewhere),
             ],
           ),
 
@@ -497,86 +591,123 @@ class _PatientsScreenState extends State<PatientsScreen> {
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _infoChip(Icons.medical_services_outlined,
                     profile.catheterType),
-                const SizedBox(width: 8),
                 _infoChip(Icons.calendar_today_outlined,
                     'Day ${profile.daysSinceInsertion}'),
-                if (profile.diagnosis.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _infoChip(
-                        Icons.local_hospital_outlined, profile.diagnosis,
-                        expand: true),
-                  ),
-                ],
+                if (profile.diagnosis.isNotEmpty)
+                  _infoChip(Icons.local_hospital_outlined, profile.diagnosis),
               ],
             ),
           ],
 
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final saved = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProfileEditScreen(
-                          existing: patient.profile,
-                          targetUserId: patient.userId,
-                          patientLabel: patient.name,
-                        ),
-                      ),
-                    );
-                    if (saved == true) _load();
-                  },
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: Text(patient.hasProfile
-                      ? 'Edit Profile'
-                      : 'Set Up Profile'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.accent,
-                    side: BorderSide(
-                      color: profileComplete
-                          ? AppColors.cardBorder
-                          : AppColors.accent.withOpacity(0.5),
-                    ),
-                    minimumSize: const Size(0, 40),
-                  ),
+          const SizedBox(height: 10),
+          _lastCheckInLine(patient.userId),
+
+          // Non-assigned patients keep an "Assign to me" action.
+          if (!isMyPatient) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: (isAssignedElsewhere || isAssigning)
+                    ? null
+                    : () => _assign(patient),
+                icon: isAssigning
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.accent),
+                      )
+                    : const Icon(Icons.link, size: 16),
+                label: const Text('Assign to me'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: BorderSide(color: AppColors.accent.withOpacity(0.5)),
+                  minimumSize: const Size(0, 38),
                 ),
               ),
-              if (!isMyPatient) ...[
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: (isAssignedElsewhere || isAssigning)
-                      ? null
-                      : () => _assign(patient),
-                  icon: isAssigning
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.accent),
-                        )
-                      : const Icon(Icons.link, size: 16),
-                  label: const Text('Assign to me'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.accent,
-                    side: BorderSide(
-                        color: AppColors.accent.withOpacity(0.5)),
-                    minimumSize: const Size(0, 40),
-                  ),
-                ),
-              ],
-            ],
-          ),
+            ),
+          ],
         ],
       ),
       ),
+    );
+  }
+
+  Widget _inlineEditButton(
+      BuildContext context, PatientSummary patient, bool profileComplete) {
+    return OutlinedButton.icon(
+      onPressed: () async {
+        final saved = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProfileEditScreen(
+              existing: patient.profile,
+              targetUserId: patient.userId,
+              patientLabel: patient.name,
+            ),
+          ),
+        );
+        if (saved == true) _load();
+      },
+      icon: const Icon(Icons.edit_outlined, size: 15),
+      label: Text(patient.hasProfile ? 'Edit' : 'Set up'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.accent,
+        side: BorderSide(
+          color: profileComplete
+              ? AppColors.cardBorder
+              : AppColors.accent.withOpacity(0.5),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        minimumSize: const Size(0, 34),
+      ),
+    );
+  }
+
+  Widget _openCasesBadge(int count) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.riskHighBg,
+        borderRadius: BorderRadius.circular(100),
+        border: Border.all(color: AppColors.riskHigh.withOpacity(0.4)),
+      ),
+      child: Text(
+        '$count open',
+        style: TextStyle(
+            color: AppColors.riskHigh,
+            fontSize: 11,
+            fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  Widget _lastCheckInLine(String userId) {
+    final future = _lastCheckInFutures.putIfAbsent(
+        userId, () => FirestoreService().getRecentAssessments(userId, limit: 1));
+    return FutureBuilder<List<Assessment>>(
+      future: future,
+      builder: (context, snap) {
+        final latest = (snap.data ?? []).isNotEmpty ? snap.data!.first : null;
+        final text = latest == null
+            ? 'No check-ins yet'
+            : 'Last check-in ${timeAgo(latest.timestamp)}';
+        return Row(
+          children: [
+            Icon(Icons.history, size: 13, color: AppColors.textSecondary),
+            const SizedBox(width: 5),
+            Text(text,
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ],
+        );
+      },
     );
   }
 

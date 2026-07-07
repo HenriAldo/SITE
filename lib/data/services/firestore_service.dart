@@ -99,6 +99,20 @@ class FirestoreService {
             .toList());
   }
 
+  // One-time fetch of a patient's most recent assessments — used by the
+  // clinician case detail to show a "is it getting worse" photo history.
+  Future<List<Assessment>> getRecentAssessments(String userId,
+      {int limit = 6}) async {
+    final snap = await _assessments(userId)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs
+        .map(_assessmentFromDoc)
+        .whereType<Assessment>()
+        .toList();
+  }
+
   Assessment? _assessmentFromDoc(
       QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     try {
@@ -148,6 +162,17 @@ class FirestoreService {
       'reviewed_at': FieldValue.serverTimestamp(),
       if (classification != null)
         'clinician_classification': classification.name,
+    });
+  }
+
+  // Undo of a quick-confirm: restore the case to unreviewed and put the
+  // clinician classification back to what it was before (or clear it).
+  Future<void> revertReview(String caseId, {RiskLevel? classification}) async {
+    await _db.collection('flagged_cases').doc(caseId).update({
+      'reviewed': false,
+      'reviewed_at': null,
+      'clinician_classification':
+          classification != null ? classification.name : FieldValue.delete(),
     });
   }
 
@@ -235,6 +260,21 @@ class FirestoreService {
     }
   }
 
+  // Count of open (unreviewed) flagged cases per patient — drives the
+  // "needs attention" badge/sort on the clinician patient list.
+  Future<Map<String, int>> getOpenFlaggedCounts() async {
+    final snap = await _db
+        .collection('flagged_cases')
+        .where('reviewed', isEqualTo: false)
+        .get();
+    final counts = <String, int>{};
+    for (final doc in snap.docs) {
+      final uid = doc.data()['user_id'] as String?;
+      if (uid != null) counts[uid] = (counts[uid] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   Stream<List<FlaggedCase>> flaggedCasesForUser(String userId) {
     // No orderBy — avoids requiring a composite index on (user_id, timestamp).
     // The caller only needs a by-id lookup map so order doesn't matter.
@@ -259,6 +299,56 @@ class FirestoreService {
         .doc(userId)
         .snapshots()
         .map((doc) => doc.data());
+  }
+
+  // Firestore's users/{uid}.display_name is the source of truth the
+  // clinician side reads (PatientSummary.name, patient cards, etc.) — it's
+  // set at patient creation and kept in sync when the patient edits their
+  // name. Firebase Auth's own displayName is a separate, often-unset store,
+  // so this is what patient-submitted records (e.g. flagged cases) should
+  // use to identify the patient, not FirebaseAuth.currentUser.displayName.
+  Future<String> getDisplayName(String userId) async {
+    final doc = await _db.collection('users').doc(userId).get();
+    return (doc.data()?['display_name'] as String?) ?? '';
+  }
+
+  Future<void> updateDisplayName(String userId, String displayName) async {
+    await _db.collection('users').doc(userId).set(
+      {'display_name': displayName},
+      SetOptions(merge: true),
+    );
+  }
+
+  // ── Notification read-state ─────────────────────────────────────
+  // Stored on the user doc (not SharedPreferences) so "seen"/"dismissed"
+  // state follows the account across devices instead of resetting on a
+  // new device, reinstall, or cleared browser storage.
+
+  Future<DateTime?> getNotificationsLastSeen(String userId) async {
+    final doc = await _db.collection('users').doc(userId).get();
+    final ts = doc.data()?['notifications_last_seen'];
+    return ts is Timestamp ? ts.toDate() : null;
+  }
+
+  Future<void> setNotificationsLastSeen(String userId, DateTime timestamp) async {
+    await _db.collection('users').doc(userId).set(
+      {'notifications_last_seen': Timestamp.fromDate(timestamp)},
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<Set<String>> getDismissedNotificationIds(String userId) async {
+    final doc = await _db.collection('users').doc(userId).get();
+    final ids = doc.data()?['dismissed_notification_ids'];
+    return ids is List ? ids.cast<String>().toSet() : <String>{};
+  }
+
+  Future<void> setDismissedNotificationIds(
+      String userId, Set<String> ids) async {
+    await _db.collection('users').doc(userId).set(
+      {'dismissed_notification_ids': ids.toList()},
+      SetOptions(merge: true),
+    );
   }
 
   // ── Clinician-created patients (one-time-password onboarding) ──

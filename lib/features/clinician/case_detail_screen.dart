@@ -11,8 +11,14 @@ import '../../shared/widgets/risk_badge.dart';
 
 class CaseDetailScreen extends StatefulWidget {
   final FlaggedCase flaggedCase;
+  /// When shown in a side pane (master-detail) rather than pushed.
+  final bool embedded;
 
-  const CaseDetailScreen({super.key, required this.flaggedCase});
+  const CaseDetailScreen({
+    super.key,
+    required this.flaggedCase,
+    this.embedded = false,
+  });
 
   @override
   State<CaseDetailScreen> createState() => _CaseDetailScreenState();
@@ -36,7 +42,9 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
     _notesController.text = widget.flaggedCase.reviewerNotes;
     _classification = widget.flaggedCase.clinicianClassification ??
         widget.flaggedCase.riskLevel;
-    _initSpeech();
+    // Phones already have built-in dictation on the keyboard — only offer
+    // the in-app mic (and its permission prompt) on web.
+    if (kIsWeb) _initSpeech();
   }
 
   Future<void> _initSpeech() async {
@@ -102,6 +110,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: !widget.embedded,
         title: Text(widget.flaggedCase.patientName),
         actions: [
           if (!_reviewed)
@@ -143,6 +152,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                 const SizedBox(height: 24),
                 _buildRiskCard(context),
                 const SizedBox(height: 20),
+                _buildPhotoHistory(context),
                 _buildClassifyRow(context),
                 const SizedBox(height: 20),
                 _buildNotesCard(context),
@@ -188,6 +198,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           ],
           _buildRiskCard(context),
           const SizedBox(height: 20),
+          _buildPhotoHistory(context),
           _buildClassifyRow(context),
           const SizedBox(height: 20),
           _buildNotesCard(context),
@@ -354,6 +365,107 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           caseId: widget.flaggedCase.id,
         ),
       ),
+    );
+  }
+
+  // Recent site photos for this patient so the clinician can judge whether
+  // the site is getting better or worse, not just its current state.
+  Widget _buildPhotoHistory(BuildContext context) {
+    return FutureBuilder<List<Assessment>>(
+      future:
+          FirestoreService().getRecentAssessments(widget.flaggedCase.userId),
+      builder: (context, snap) {
+        final withImages = (snap.data ?? [])
+            .where((a) => a.imageUrl != null && a.imageUrl!.isNotEmpty)
+            .toList();
+        // Nothing to compare against — hide the strip entirely.
+        if (withImages.length < 2) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Photo history',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text('Most recent first',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 110,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: withImages.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, i) {
+                  final a = withImages[i];
+                  final isCurrent = a.id == widget.flaggedCase.id;
+                  return GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (_) => _FullScreenImageViewer(
+                            imageUrl: a.imageUrl!, caseId: a.id),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: isCurrent
+                                    ? AppColors.accent
+                                    : AppColors.cardBorder,
+                                width: isCurrent ? 2 : 1,
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: CachedNetworkImage(
+                              imageUrl: a.imageUrl!,
+                              width: 110,
+                              height: 82,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => Container(
+                                  width: 110,
+                                  height: 82,
+                                  color: AppColors.surface),
+                              errorWidget: (_, __, ___) => Container(
+                                width: 110,
+                                height: 82,
+                                color: AppColors.surface,
+                                child: Icon(Icons.broken_image_outlined,
+                                    color: AppColors.textSecondary),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isCurrent
+                              ? 'This case'
+                              : DateFormat('d MMM').format(a.timestamp),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isCurrent
+                                ? AppColors.accent
+                                : AppColors.textSecondary,
+                            fontWeight:
+                                isCurrent ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        );
+      },
     );
   }
 
@@ -756,8 +868,9 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
         classification: _classification,
       );
       if (mounted) {
-        // Pop back to the dashboard first, then show the snackbar there
-        Navigator.pop(context);
+        // When pushed as its own route, pop back to the dashboard; when
+        // embedded in a side pane, stay put (the stream updates in place).
+        if (!widget.embedded) Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Case marked as reviewed'),

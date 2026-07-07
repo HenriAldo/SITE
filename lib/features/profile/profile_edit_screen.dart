@@ -294,8 +294,23 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         .where((s) => s.isNotEmpty)
         .toList();
 
+    // Save to target patient if set (clinician editing), otherwise own profile
+    final userId = widget.targetUserId ??
+        FirebaseAuth.instance.currentUser?.uid;
+
+    // When a clinician edits a patient's profile, the signed-in user is the
+    // clinician, not the patient — use the patient's own label instead of
+    // falling back to the clinician's Auth displayName. Otherwise, prefer
+    // Firestore's users/{uid}.display_name (the source clinicians read)
+    // over Firebase Auth's own displayName.
+    final name = widget.patientLabel ??
+        (userId != null ? await FirestoreService().getDisplayName(userId) : '');
+    final resolvedName = name.isNotEmpty
+        ? name
+        : FirebaseAuth.instance.currentUser?.displayName ?? '';
+
     final profile = PatientProfile(
-      name: FirebaseAuth.instance.currentUser?.displayName ?? '',
+      name: resolvedName,
       age: int.tryParse(_ageController.text.trim()) ?? 0,
       catheterType: _catheterType,
       insertionDate: _insertionDate,
@@ -305,9 +320,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       lastLabSummary: _existingLastLabSummary,
     );
 
-    // Save to target patient if set (clinician editing), otherwise own profile
-    final userId = widget.targetUserId ??
-        FirebaseAuth.instance.currentUser?.uid;
     try {
       if (userId != null) {
         await FirestoreService().saveProfile(userId, profile);

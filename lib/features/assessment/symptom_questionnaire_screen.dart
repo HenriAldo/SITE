@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../../core/theme/app_colors.dart';
@@ -94,7 +95,9 @@ class _SymptomQuestionnaireScreenState
       _hasChills = initial.hasChills;
       _extraSymptoms.addAll(initial.extraSymptoms);
     }
-    _initSpeech();
+    // Phones already have built-in dictation on the keyboard — only offer
+    // the in-app mic (and its permission prompt) on web.
+    if (kIsWeb) _initSpeech();
   }
 
   Future<void> _initSpeech() async {
@@ -304,54 +307,71 @@ class _SymptomQuestionnaireScreenState
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _buildSymptomBox(
-              label: 'Fever',
-              icon: Icons.thermostat_outlined,
-              value: _hasFever,
-              onTap: () => setState(() => _hasFever = !_hasFever),
-            ),
-            _buildSymptomBox(
-              label: 'Chills',
-              icon: Icons.ac_unit_outlined,
-              value: _hasChills,
-              onTap: () => setState(() => _hasChills = !_hasChills),
-            ),
-            _buildSymptomBox(
-              label: 'Pain at site',
-              icon: Icons.pin_drop_outlined,
-              value: _hasPain,
-              onTap: () => setState(() => _hasPain = !_hasPain),
-            ),
-            _buildSymptomBox(
-              label: 'Redness',
-              customIcon: _buildRednessIcon(),
-              value: _hasRedness,
-              onTap: () => setState(() => _hasRedness = !_hasRedness),
-            ),
-            _buildSymptomBox(
-              label: 'Swelling',
-              icon: Icons.water_outlined,
-              value: _hasSwelling,
-              onTap: () => setState(() => _hasSwelling = !_hasSwelling),
-            ),
-            _buildSymptomBox(
-              label: 'Discharge',
-              icon: Icons.opacity_outlined,
-              value: _hasDrainage,
-              onTap: () => setState(() => _hasDrainage = !_hasDrainage),
-            ),
-            for (final extra in _extraSymptoms)
-              _buildSymptomBox(
-                label: extra,
-                icon: Icons.check_circle_outline,
-                value: true,
-                onTap: () => setState(() => _extraSymptoms.remove(extra)),
-              ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // Fixed 3-column grid so the 6 core symptoms fill the row
+            // edge-to-edge instead of clumping at a fixed tile width.
+            const columns = 3;
+            const spacing = 10.0;
+            final tileWidth =
+                (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: [
+                _buildSymptomBox(
+                  label: 'Fever',
+                  icon: Icons.thermostat_outlined,
+                  value: _hasFever,
+                  width: tileWidth,
+                  onTap: () => setState(() => _hasFever = !_hasFever),
+                ),
+                _buildSymptomBox(
+                  label: 'Chills',
+                  icon: Icons.ac_unit_outlined,
+                  value: _hasChills,
+                  width: tileWidth,
+                  onTap: () => setState(() => _hasChills = !_hasChills),
+                ),
+                _buildSymptomBox(
+                  label: 'Pain at site',
+                  icon: Icons.pin_drop_outlined,
+                  value: _hasPain,
+                  width: tileWidth,
+                  onTap: () => setState(() => _hasPain = !_hasPain),
+                ),
+                _buildSymptomBox(
+                  label: 'Redness',
+                  customIcon: _buildRednessIcon(),
+                  value: _hasRedness,
+                  width: tileWidth,
+                  onTap: () => setState(() => _hasRedness = !_hasRedness),
+                ),
+                _buildSymptomBox(
+                  label: 'Swelling',
+                  icon: Icons.water_outlined,
+                  value: _hasSwelling,
+                  width: tileWidth,
+                  onTap: () => setState(() => _hasSwelling = !_hasSwelling),
+                ),
+                _buildSymptomBox(
+                  label: 'Discharge',
+                  icon: Icons.opacity_outlined,
+                  value: _hasDrainage,
+                  width: tileWidth,
+                  onTap: () => setState(() => _hasDrainage = !_hasDrainage),
+                ),
+                for (final extra in _extraSymptoms)
+                  _buildSymptomBox(
+                    label: extra,
+                    icon: Icons.check_circle_outline,
+                    value: true,
+                    width: tileWidth,
+                    onTap: () => setState(() => _extraSymptoms.remove(extra)),
+                  ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 14),
         OutlinedButton.icon(
@@ -367,6 +387,7 @@ class _SymptomQuestionnaireScreenState
     required String label,
     required bool value,
     required VoidCallback onTap,
+    required double width,
     IconData? icon,
     Widget? customIcon,
   }) {
@@ -374,11 +395,13 @@ class _SymptomQuestionnaireScreenState
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 100,
-        height: 100,
+        width: width,
+        height: width,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: value ? AppColors.accent : AppColors.surface,
+          // Selected state is a light accent tint, not a solid fill — same
+          // language as the Yes/No choice cards above.
+          color: value ? AppColors.accent.withValues(alpha: 0.15) : AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: value ? AppColors.accent : AppColors.cardBorder,
@@ -392,7 +415,7 @@ class _SymptomQuestionnaireScreenState
                 Icon(
                   icon,
                   size: 26,
-                  color: value ? Colors.white : AppColors.textSecondary,
+                  color: value ? AppColors.accent : AppColors.textSecondary,
                 ),
             const SizedBox(height: 8),
             Text(
@@ -403,7 +426,7 @@ class _SymptomQuestionnaireScreenState
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: value ? Colors.white : AppColors.textSecondary,
+                color: value ? AppColors.accent : AppColors.textSecondary,
               ),
             ),
           ],
