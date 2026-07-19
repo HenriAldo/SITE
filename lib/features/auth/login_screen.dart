@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'SITE',
           style: TextStyle(
             color: AppColors.accent,
@@ -268,7 +268,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }),
           child: Text(
             _isLogin ? 'Register' : 'Sign in',
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.accent,
               fontWeight: FontWeight.w600,
             ),
@@ -284,16 +284,16 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: BoxDecoration(
         color: AppColors.riskHighBg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.riskHigh.withOpacity(0.3)),
+        border: Border.all(color: AppColors.riskHigh.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: AppColors.riskHigh, size: 16),
+          const Icon(Icons.error_outline, color: AppColors.riskHigh, size: 16),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               _errorMessage!,
-              style: TextStyle(color: AppColors.riskHigh, fontSize: 13),
+              style: const TextStyle(color: AppColors.riskHigh, fontSize: 13),
             ),
           ),
         ],

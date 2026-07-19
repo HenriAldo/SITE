@@ -58,7 +58,7 @@ class ResultScreen extends StatelessWidget {
         color: assessment.riskLevel.backgroundColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: assessment.riskLevel.color.withOpacity(0.3),
+          color: assessment.riskLevel.color.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -197,7 +197,7 @@ class ResultScreen extends StatelessWidget {
                   margin: const EdgeInsets.only(top: 3),
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: AppColors.accent.withOpacity(0.15),
+                    color: AppColors.accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(step.$1, size: 14, color: AppColors.accent),

@@ -94,7 +94,7 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Discard', style: TextStyle(color: AppColors.riskHigh)),
+            child: const Text('Discard', style: TextStyle(color: AppColors.riskHigh)),
           ),
         ],
       ),
@@ -198,14 +198,14 @@ class _GuidedCaptureScreenState extends State<GuidedCaptureScreen> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.accent.withOpacity(0.4), style: BorderStyle.solid),
+          border: Border.all(color: AppColors.accent.withValues(alpha: 0.4), style: BorderStyle.solid),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_a_photo_outlined, size: 40, color: AppColors.accent.withOpacity(0.7)),
+            Icon(Icons.add_a_photo_outlined, size: 40, color: AppColors.accent.withValues(alpha: 0.7)),
             const SizedBox(height: 12),
-            Text(
+            const Text(
               'Tap to take photo',
               style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w500),
             ),

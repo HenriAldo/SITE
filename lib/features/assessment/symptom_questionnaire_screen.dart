@@ -264,7 +264,7 @@ class _SymptomQuestionnaireScreenState
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.accent.withOpacity(0.15)
+              ? AppColors.accent.withValues(alpha: 0.15)
               : AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
@@ -482,7 +482,7 @@ class _SymptomQuestionnaireScreenState
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColors.accent),
+              borderSide: const BorderSide(color: AppColors.accent),
             ),
             filled: true,
             fillColor: AppColors.surface,
@@ -502,7 +502,7 @@ class _SymptomQuestionnaireScreenState
         ),
         if (_isListening) ...[
           const SizedBox(height: 6),
-          Text(
+          const Text(
             'Listening…',
             style: TextStyle(color: AppColors.accent, fontSize: 12),
           ),
@@ -629,7 +629,7 @@ class _AddSymptomsSheetState extends State<_AddSymptomsSheet> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.accent),
+                    borderSide: const BorderSide(color: AppColors.accent),
                   ),
                   filled: true,
                   fillColor: AppColors.background,

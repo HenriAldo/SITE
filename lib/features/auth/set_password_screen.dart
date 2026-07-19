@@ -65,7 +65,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 40),
-                Text(
+                const Text(
                   'SITE',
                   style: TextStyle(
                     color: AppColors.accent,
@@ -133,13 +133,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.error_outline,
+                        const Icon(Icons.error_outline,
                             color: AppColors.riskHigh, size: 16),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: TextStyle(
+                            style: const TextStyle(
                                 color: AppColors.riskHigh, fontSize: 13),
                           ),
                         ),

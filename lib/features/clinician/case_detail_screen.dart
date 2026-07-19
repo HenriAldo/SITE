@@ -225,7 +225,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: AppColors.accent.withOpacity(0.15),
+            color: AppColors.accent.withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.person_outline,
@@ -331,9 +331,9 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
               ),
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
+                children: [
                   Icon(Icons.zoom_in, color: Colors.white, size: 14),
                   SizedBox(width: 4),
                   Text('Tap to zoom',
@@ -477,7 +477,7 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
         color: widget.flaggedCase.riskLevel.backgroundColor,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: widget.flaggedCase.riskLevel.color.withOpacity(0.3),
+          color: widget.flaggedCase.riskLevel.color.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -777,8 +777,8 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
                   ),
                 ),
                 if (_isListening)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
                     child: Text(
                       'Listening…',
                       style: TextStyle(color: AppColors.accent, fontSize: 12),
@@ -841,12 +841,12 @@ class _CaseDetailScreenState extends State<CaseDetailScreen> {
       decoration: BoxDecoration(
         color: AppColors.riskLowBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.riskLow.withOpacity(0.3)),
+        border: Border.all(color: AppColors.riskLow.withValues(alpha: 0.3)),
       ),
-      child: Row(
+      child: const Row(
         children: [
-          const Icon(Icons.check_circle, color: AppColors.riskLow, size: 18),
-          const SizedBox(width: 10),
+          Icon(Icons.check_circle, color: AppColors.riskLow, size: 18),
+          SizedBox(width: 10),
           Text(
             'This case has been reviewed.',
             style: TextStyle(

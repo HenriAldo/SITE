@@ -19,7 +19,7 @@ class RiskBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: riskLevel.backgroundColor,
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: riskLevel.color.withOpacity(0.4)),
+        border: Border.all(color: riskLevel.color.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

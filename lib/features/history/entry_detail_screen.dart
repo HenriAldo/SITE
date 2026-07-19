@@ -326,11 +326,11 @@ class EntryDetailScreen extends StatelessWidget {
                           ? Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
+                                const Row(
                                   children: [
-                                    const Icon(Icons.check_circle,
+                                    Icon(Icons.check_circle,
                                         size: 16, color: AppColors.riskLow),
-                                    const SizedBox(width: 8),
+                                    SizedBox(width: 8),
                                     Text(
                                       'Reviewed',
                                       style: TextStyle(

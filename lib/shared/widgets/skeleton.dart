@@ -63,15 +63,15 @@ class SkeletonCaseCard extends StatelessWidget {
         border: Border.all(color: AppColors.cardBorder),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SkeletonBox(height: 150, radius: 0),
+          SkeletonBox(height: 150, radius: 0),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 SkeletonBox(width: 120, height: 14),
                 SizedBox(height: 8),
                 SkeletonBox(width: 80, height: 10),

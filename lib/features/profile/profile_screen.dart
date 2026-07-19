@@ -38,13 +38,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _sendingVerification = true);
     try {
       await FirebaseAuth.instance.currentUser?.sendEmailVerification();
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Verification email sent.')),
         );
       }
     } catch (_) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not send verification email. Try again later.')),
         );
@@ -189,7 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppColors.accent.withOpacity(0.15),
+              color: AppColors.accent.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.person_outline,
@@ -208,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Flexible(
                         child: Text(
-                          hasName ? user!.displayName! : 'Add your name',
+                          hasName ? user.displayName! : 'Add your name',
                           style:
                               Theme.of(context).textTheme.titleMedium?.copyWith(
                                     color: hasName
@@ -248,7 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.riskModerateBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.riskModerate.withOpacity(0.3)),
+        border: Border.all(color: AppColors.riskModerate.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -259,7 +259,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Text(
               'Please verify your email address.',
               style: TextStyle(
-                color: AppColors.riskModerate.withOpacity(0.9),
+                color: AppColors.riskModerate.withValues(alpha: 0.9),
                 fontSize: 13,
               ),
             ),
@@ -343,7 +343,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           icon: Icons.groups_outlined,
           children: hasTeam
               ? [
-                  if (team!.clinicianName.isNotEmpty)
+                  if (team.clinicianName.isNotEmpty)
                     _row(context, 'Physician', team.clinicianName),
                   if (team.phone.isNotEmpty)
                     _row(context, 'Phone', team.phone),
@@ -599,7 +599,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (confirmed == true) {
       // Pop all routes so AuthGate is exposed and can rebuild to LoginScreen
-      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+      if (context.mounted) Navigator.of(context).popUntil((route) => route.isFirst);
       await AuthService().signOut();
     }
   }

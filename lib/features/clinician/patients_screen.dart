@@ -536,7 +536,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
               ? AppColors.accent
               : profileComplete
                   ? AppColors.cardBorder
-                  : AppColors.accent.withOpacity(0.3),
+                  : AppColors.accent.withValues(alpha: 0.3),
           width: selected ? 2 : 1,
         ),
       ),
@@ -549,7 +549,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withOpacity(0.12),
+                  color: AppColors.accent.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.person_outline,
@@ -628,7 +628,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
                 label: const Text('Assign to me'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.accent,
-                  side: BorderSide(color: AppColors.accent.withOpacity(0.5)),
+                  side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
                   minimumSize: const Size(0, 38),
                 ),
               ),
@@ -663,7 +663,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
         side: BorderSide(
           color: profileComplete
               ? AppColors.cardBorder
-              : AppColors.accent.withOpacity(0.5),
+              : AppColors.accent.withValues(alpha: 0.5),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         minimumSize: const Size(0, 34),
@@ -677,11 +677,11 @@ class _PatientsScreenState extends State<PatientsScreen> {
       decoration: BoxDecoration(
         color: AppColors.riskHighBg,
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: AppColors.riskHigh.withOpacity(0.4)),
+        border: Border.all(color: AppColors.riskHigh.withValues(alpha: 0.4)),
       ),
       child: Text(
         '$count open',
-        style: TextStyle(
+        style: const TextStyle(
             color: AppColors.riskHigh,
             fontSize: 11,
             fontWeight: FontWeight.w600),
@@ -719,7 +719,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
 
     if (isMyPatient) {
       bg = AppColors.riskLowBg;
-      border = AppColors.riskLow.withOpacity(0.4);
+      border = AppColors.riskLow.withValues(alpha: 0.4);
       text = AppColors.riskLow;
       label = 'My patient';
     } else if (isAssignedElsewhere) {
@@ -729,7 +729,7 @@ class _PatientsScreenState extends State<PatientsScreen> {
       label = 'Other clinician';
     } else {
       bg = AppColors.riskModerateBg;
-      border = AppColors.riskModerate.withOpacity(0.4);
+      border = AppColors.riskModerate.withValues(alpha: 0.4);
       text = AppColors.riskModerate;
       label = 'Unassigned';
     }

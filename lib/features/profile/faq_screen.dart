@@ -101,12 +101,12 @@ class _FaqTileState extends State<_FaqTile>
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: _expanded
-              ? AppColors.accentDark.withOpacity(0.08)
+              ? AppColors.accentDark.withValues(alpha: 0.08)
               : AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: _expanded
-                ? AppColors.accentDark.withOpacity(0.4)
+                ? AppColors.accentDark.withValues(alpha: 0.4)
                 : AppColors.cardBorder,
           ),
         ),
@@ -127,7 +127,7 @@ class _FaqTileState extends State<_FaqTile>
                       decoration: BoxDecoration(
                         color: _expanded
                             ? AppColors.accentDark
-                            : AppColors.accentDark.withOpacity(0.15),
+                            : AppColors.accentDark.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Center(
@@ -188,9 +188,9 @@ class _FaqTileState extends State<_FaqTile>
                         color: AppColors.surface,
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                            color: AppColors.accentDark.withOpacity(0.3)),
+                            color: AppColors.accentDark.withValues(alpha: 0.3)),
                       ),
-                      child: Center(
+                      child: const Center(
                         child: Text(
                           'A',
                           style: TextStyle(

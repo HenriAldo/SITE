@@ -54,19 +54,6 @@ class StreakHistory extends StatelessWidget {
 
             final now = DateTime.now();
             final today = DateTime(now.year, now.month, now.day);
-            bool hasSubmission(DateTime day) => dayLevels.containsKey(day);
-
-            // A streak breaks after one missed local-calendar day. "Today"
-            // isn't a miss until the day has actually passed, so start
-            // counting from today if it's done, otherwise from yesterday.
-            var cursor = hasSubmission(today)
-                ? today
-                : today.subtract(const Duration(days: 1));
-            var streak = 0;
-            while (hasSubmission(cursor)) {
-              streak++;
-              cursor = cursor.subtract(const Duration(days: 1));
-            }
 
             final days = List.generate(
                 14, (i) => today.subtract(Duration(days: 13 - i)));

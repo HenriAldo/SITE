@@ -403,7 +403,7 @@ class _ClinicianDashboardScreenState extends State<ClinicianDashboardScreen> {
             Switch(
               value: _showReviewed,
               onChanged: (v) => setState(() => _showReviewed = v),
-              activeColor: AppColors.accent,
+              activeThumbColor: AppColors.accent,
             ),
           ],
         ],
@@ -651,7 +651,7 @@ class _CaseCardState extends State<_CaseCard> {
                 ? AppColors.accent
                 : flaggedCase.reviewed
                     ? AppColors.cardBorder
-                    : _persisted.color.withOpacity(0.3),
+                    : _persisted.color.withValues(alpha: 0.3),
             width: widget.selected ? 2 : 1,
           ),
         ),
@@ -735,7 +735,7 @@ class _CaseCardState extends State<_CaseCard> {
                         const Icon(Icons.check_circle,
                             size: 13, color: AppColors.riskLow),
                         const SizedBox(width: 4),
-                        Text(
+                        const Text(
                           'Reviewed',
                           style: TextStyle(
                             color: AppColors.riskLow,
@@ -857,7 +857,7 @@ class _CaseCardState extends State<_CaseCard> {
       decoration: BoxDecoration(
         color: _persisted.backgroundColor,
         borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: _persisted.color.withOpacity(0.4)),
+        border: Border.all(color: _persisted.color.withValues(alpha: 0.4)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,

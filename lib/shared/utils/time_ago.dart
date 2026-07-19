@@ -1,4 +1,5 @@
 /// Compact elapsed-time formatting for clinician dashboard cards.
+library;
 
 /// Short magnitude only, e.g. "just now", "5 min", "2 h", "3 d".
 String elapsedShort(DateTime from) {

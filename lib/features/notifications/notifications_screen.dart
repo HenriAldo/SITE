@@ -225,7 +225,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         child: Row(
           children: [
-            Icon(Icons.fact_check_outlined, color: AppColors.accent, size: 22),
+            const Icon(Icons.fact_check_outlined, color: AppColors.accent, size: 22),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

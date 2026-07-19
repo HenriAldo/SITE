@@ -65,7 +65,7 @@ class HomeScreen extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'SITE',
                   style: TextStyle(
                     color: AppColors.accent,
@@ -142,12 +142,12 @@ class HomeScreen extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.accent.withOpacity(0.15),
-            AppColors.accent.withOpacity(0.05),
+            AppColors.accent.withValues(alpha: 0.15),
+            AppColors.accent.withValues(alpha: 0.05),
           ],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -157,7 +157,7 @@ class HomeScreen extends StatelessWidget {
               Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.accent,
                   shape: BoxShape.circle,
                 ),
@@ -209,7 +209,7 @@ class HomeScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.riskLowBg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.riskLow.withOpacity(0.3)),
+        border: Border.all(color: AppColors.riskLow.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -252,8 +252,8 @@ class HomeScreen extends StatelessWidget {
                     .textTheme
                     .bodyMedium
                     ?.copyWith(fontSize: 12, color: AppColors.textSecondary),
-                children: [
-                  const TextSpan(text: 'In doubt? Call '),
+                children: const [
+                  TextSpan(text: 'In doubt? Call '),
                   TextSpan(
                     text: '116117',
                     style: TextStyle(
@@ -261,7 +261,7 @@ class HomeScreen extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const TextSpan(text: ' — the medical on-call service.'),
+                  TextSpan(text: ' — the medical on-call service.'),
                 ],
               ),
             ),

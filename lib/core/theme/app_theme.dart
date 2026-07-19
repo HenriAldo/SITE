@@ -66,7 +66,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.accent,
-          side: BorderSide(color: AppColors.accent),
+          side: const BorderSide(color: AppColors.accent),
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -127,7 +127,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.accent, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
         ),
         labelStyle: TextStyle(color: AppColors.textSecondary),
         hintStyle: TextStyle(color: AppColors.textSecondary),

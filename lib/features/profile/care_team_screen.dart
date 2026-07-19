@@ -43,7 +43,7 @@ class CareTeamScreen extends StatelessWidget {
                 _buildUrgentBanner(context),
                 const SizedBox(height: 24),
                 if (hasTeam) ...[
-                  _buildContactCard(context, team!),
+                  _buildContactCard(context, team),
                 ] else ...[
                   _buildNoTeamCard(context),
                 ],
@@ -62,7 +62,7 @@ class CareTeamScreen extends StatelessWidget {
         color: AppColors.riskHighBg,
         borderRadius: BorderRadius.circular(12),
         border:
-            Border.all(color: AppColors.riskHigh.withOpacity(0.3)),
+            Border.all(color: AppColors.riskHigh.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,7 +76,7 @@ class CareTeamScreen extends StatelessWidget {
                 child: Text(
                   'If you have fever above 38°C or severe chills, go to the emergency room immediately — do not wait.',
                   style: TextStyle(
-                    color: AppColors.riskHigh.withOpacity(0.9),
+                    color: AppColors.riskHigh.withValues(alpha: 0.9),
                     fontSize: 13,
                     height: 1.5,
                   ),
@@ -85,7 +85,7 @@ class CareTeamScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Divider(height: 1, color: AppColors.riskHigh.withOpacity(0.2)),
+          Divider(height: 1, color: AppColors.riskHigh.withValues(alpha: 0.2)),
           const SizedBox(height: 12),
           _build116117Notice(context),
         ],
@@ -189,8 +189,8 @@ class CareTeamScreen extends StatelessWidget {
                     .textTheme
                     .bodyMedium
                     ?.copyWith(fontSize: 12, color: AppColors.textSecondary),
-                children: [
-                  const TextSpan(text: 'In doubt? Call '),
+                children: const [
+                  TextSpan(text: 'In doubt? Call '),
                   TextSpan(
                     text: '116117',
                     style: TextStyle(
@@ -198,8 +198,7 @@ class CareTeamScreen extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const TextSpan(
-                      text: ' — the patient service in Germany.'),
+                  TextSpan(text: ' — the patient service in Germany.'),
                 ],
               ),
             ),

@@ -217,7 +217,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
   Widget _buildCatheterTypeField() {
     return DropdownButtonFormField<String>(
-      value: _catheterType,
+      initialValue: _catheterType,
       dropdownColor: AppColors.surface,
       decoration: const InputDecoration(labelText: 'Catheter type'),
       items: _catheterTypes
@@ -277,7 +277,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           Switch(
             value: _isImmunosuppressed,
             onChanged: (v) => setState(() => _isImmunosuppressed = v),
-            activeColor: AppColors.accent,
+            activeThumbColor: AppColors.accent,
           ),
         ],
       ),
