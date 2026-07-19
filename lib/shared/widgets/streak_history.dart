@@ -79,17 +79,6 @@ class StreakHistory extends StatelessWidget {
                     Text('Check-in streak',
                         style: Theme.of(context).textTheme.titleMedium),
                     const Spacer(),
-                    if (streak > 0) ...[
-                      const Icon(Icons.local_fire_department,
-                          color: Colors.deepOrange, size: 18),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$streak day${streak == 1 ? '' : 's'}',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary),
-                      ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 2),

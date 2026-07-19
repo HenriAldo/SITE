@@ -317,55 +317,71 @@ class HomeScreen extends StatelessWidget {
         final dateStr =
             DateFormat('EEEE, d MMM — HH:mm').format(latest.timestamp);
 
-        return InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (_) => EntryDetailScreen(assessment: latest)),
-          ),
-          child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.cardBorder),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // Merge in the clinician's reclassification once reviewed — same
+        // rule History/EntryDetail use — so this card doesn't keep showing
+        // the original AI risk level after a clinician has corrected it.
+        return StreamBuilder<List<FlaggedCase>>(
+          stream: FirestoreService().flaggedCasesForUser(userId),
+          builder: (context, flagSnap) {
+            final flagged = (flagSnap.data ?? [])
+                .cast<FlaggedCase?>()
+                .firstWhere((f) => f?.id == latest.id, orElse: () => null);
+            final reviewed = flagged?.reviewed ?? false;
+            final effectiveLevel = reviewed
+                ? (flagged?.clinicianClassification ?? latest.riskLevel)
+                : latest.riskLevel;
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => EntryDetailScreen(assessment: latest)),
+              ),
+              child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.cardBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Last Assessment',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Last Assessment',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      RiskBadge(riskLevel: effectiveLevel),
+                    ],
                   ),
-                  RiskBadge(riskLevel: latest.riskLevel),
+                  const SizedBox(height: 6),
+                  Text(
+                    dateStr,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    latest.patientMessage,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                dateStr,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(fontSize: 12),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                latest.patientMessage,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
+            ),
+            );
+          },
         );
       },
     );
