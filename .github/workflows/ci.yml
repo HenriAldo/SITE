@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze-test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.1
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # lib/secrets.dart is gitignored (holds the real Gemini API key) — CI
+      # only needs the app to compile, not to actually call the API, so a
+      # placeholder value from the checked-in example is enough.
+      - name: Create placeholder secrets file
+        run: cp lib/secrets.dart.example lib/secrets.dart
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build (web)
+        run: flutter build web
