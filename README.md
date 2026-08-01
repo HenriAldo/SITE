@@ -4,7 +4,7 @@
 
 \
 **System for Intelligent Telemonitoring and Early-Detection**
-The project of SITE was part of a course at my university called "Product Builder". The main objective ofthe course was to develop a digital health product, moving from problem validation to a functional prototype fitting the identified need and a viable business case. Throughout the course, we followed a structured version of the path taken by real founding teams, making decisions under regulatory constraints and limited evidence. The goal was not simply to build a prototype, but to understand what it takes to create solutions that can be meaningfully used, approved, and adopted in real-world healthcare settings.
+The project of SITE was part of a course at my university called "Product Builder". The main objective ofthe course was to develop a digital health product, moving from problem validation to a functional prototype fitting the identified need and a viable business case. Throughout the course, we followed a structured version of the path taken by real founding teams, making decisions under regulatory constraints and limited evidence. The goal was not simply to build a prototype, but to understand what it takes to create solutions that can be meaningfully used, approved, and adopted in real-world healthcare settings. It is important to note that this is not working medical poduct.
 
 ---
 ## Getting Started
