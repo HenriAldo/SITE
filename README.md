@@ -1,4 +1,4 @@
-<img src="assets/images/Logo.png" alt="SITE logo" width="120" align="left" />
+<img src="assets/images/Logo_without_backgroud.png" alt="SITE logo" width="120" align="left" />
 
 # SITE — AI-Assisted Remote Catheter Monitoring
 
