@@ -70,9 +70,38 @@ Clinical profile          Symptom integration          High     → Urgent alert
 
 <table border="0" cellspacing="0" cellpadding="0" style="border:none;border-collapse:collapse;">
   <tr>
-    <td align="center" style="border:none;"><b>Patient check-in flow</b><br><img src="assets/GIF/Medien1.gif" width="260"></td>
-    <td align="center" style="border:none;"><b>Assessment and result</b><br><img src="assets/GIF/Medien2.gif" width="260"></td>
-    <td align="center" style="border:none;"><b>Clinician dashboard review</b><br><img src="assets/GIF/Medien3.gif" width="260"></td>
+    <td width="260" valign="top" style="border:none;"><img src="assets/GIF/Medien1.gif" width="260"></td>
+    <td valign="middle" style="border:none;padding-left:20px;">
+      <b>Patient check-in flow</b>
+      <ul>
+        <li>Guided photo capture with step-by-step framing instructions</li>
+        <li>Daily symptom questionnaire (fever, pain, swelling, drainage, chills, redness, plus free-text extras) with optional voice-to-text on web</li>
+        <li>14-day check-in streak grid, tap-through to any day's detail</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td width="260" valign="top" style="border:none;"><img src="assets/GIF/Medien2.gif" width="260"></td>
+    <td valign="middle" style="border:none;padding-left:20px;">
+      <b>Assessment and result</b>
+      <ul>
+        <li>AI risk assessment against the CLISA rubric, integrating symptoms and clinical context</li>
+        <li>Assessment history with clinician-reviewed status and reclassification</li>
+        <li>In-app notifications when a clinician reviews a check-in, synced across devices via Firestore</li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <td width="260" valign="top" style="border:none;"><img src="assets/GIF/Medien3.gif" width="260"></td>
+    <td valign="middle" style="border:none;padding-left:20px;">
+      <b>Clinician dashboard review</b>
+      <ul>
+        <li>Flagged cases in a risk-grouped, master-detail view with quick-classify and one-tap confirm</li>
+        <li>Full patient roster — search by name/email, filter to your own patients, assign unassigned ones</li>
+        <li>Per-patient detail page: profile, catheter/diagnosis context, check-in streak, recent assessments</li>
+        <li>Case detail screen with AI reasoning, visual findings, symptom breakdown, and reasoning-quality feedback</li>
+      </ul>
+    </td>
   </tr>
 </table>
 
@@ -96,21 +125,8 @@ The model integrates image findings with patient-reported symptoms and clinical 
 
 ## Features
 
-**Patient app**
-- Guided photo capture with step-by-step framing instructions
-- Daily symptom questionnaire (fever, pain, swelling, drainage, chills, redness, plus free-text extras) with optional voice-to-text on web
-- AI risk assessment against the CLISA rubric, integrating symptoms and clinical context
-- Assessment history with clinician-reviewed status and reclassification
-- 14-day check-in streak grid, tap-through to any day's detail
-- In-app notifications when a clinician reviews a check-in, synced across devices via Firestore
 - Care team contact card, with a direct-dial link and a 116117 (Germany patient service) fallback
 - FAQ / "what counts as a symptom" guidance
-
-**Clinician dashboard**
-- Flagged cases in a risk-grouped, master-detail view with quick-classify and one-tap confirm
-- Full patient roster — search by name/email, filter to your own patients, assign unassigned ones
-- Per-patient detail page: profile, catheter/diagnosis context, check-in streak, recent assessments
-- Case detail screen with AI reasoning, visual findings, symptom breakdown, and reasoning-quality feedback
 - Clinician profile with contact details (phone/clinic) shown to assigned patients
 - Responsive layout — full-width grids on desktop/web, split-pane once something's selected
 
