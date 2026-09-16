@@ -2,10 +2,11 @@
 
 # SITE — AI-Assisted Remote Catheter Monitoring
 
-\
 **System for Intelligent Telemonitoring and Early-Detection**
 The project of SITE was part of a course at my university called "Product Builder". The main objective of the course was to develop a digital health product, moving from problem validation to a functional prototype fitting the identified need and a viable business case. Throughout the course, we followed a structured version of the path taken by real founding teams, making decisions under regulatory constraints and limited evidence.
 It is not a validated medical device and is not intended for clinical use. All assessments are for informational purposes only and do not replace clinical judgment.
+
+<br clear="left"/>
 
 ---
 ## Getting Started
