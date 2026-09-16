@@ -5,6 +5,7 @@
 \
 **System for Intelligent Telemonitoring and Early-Detection**
 The project of SITE was part of a course at my university called "Product Builder". The main objective of the course was to develop a digital health product, moving from problem validation to a functional prototype fitting the identified need and a viable business case. Throughout the course, we followed a structured version of the path taken by real founding teams, making decisions under regulatory constraints and limited evidence.
+It is not a validated medical device and is not intended for clinical use. All assessments are for informational purposes only and do not replace clinical judgment.
 
 ---
 ## Getting Started
@@ -62,8 +63,8 @@ SITE gives patients a structured daily monitoring routine and replaces phone tri
 Patient App          →    Gemini Vision API      →    Risk Classification
 ─────────────────         ──────────────────          ───────────────────
 Guided photo capture      CLISA scoring (0–3)         Low      → Reassure
-Symptom questionnaire     Clinical context             Moderate → Clinician dashboard
-Clinical profile          Symptom integration          High     → Urgent alert
+Symptom questionnaire     Clinical context            Moderate → Clinician dashboard
+Clinical profile          Symptom integration         High     → Urgent alert
 ```
 
 ## Demo
@@ -77,6 +78,13 @@ Clinical profile          Symptom integration          High     → Urgent alert
         <li>Guided photo capture with step-by-step framing instructions</li>
         <li>Daily symptom questionnaire (fever, pain, swelling, drainage, chills, redness, plus free-text extras) with optional voice-to-text on web</li>
         <li>14-day check-in streak grid, tap-through to any day's detail</li>
+      </ul>
+      <b>Additional features build</b>
+      <ul>
+         <li>Care team contact card, with a direct-dial link and a 116117 (Germany patient service) fallback</li>
+         <li>FAQ / "what counts as a symptom" guidance</li>
+         <li>Clinician profile with contact details (phone/clinic) shown to assigned patients</li>
+         <li>Responsive layout — full-width grids on desktop/web, split-pane once something's selected</li>
       </ul>
     </td>
   </tr>
@@ -122,15 +130,5 @@ The AI layer uses Gemini's vision model with a structured prompt encoding the **
 The model integrates image findings with patient-reported symptoms and clinical context (catheter type, days since insertion, immunosuppression status, diagnosis) to produce a structured JSON risk assessment. A clinician can review and, if needed, override the AI's classification — the app tracks and displays both.
 
 ---
-
-## Features
-
-- Care team contact card, with a direct-dial link and a 116117 (Germany patient service) fallback
-- FAQ / "what counts as a symptom" guidance
-- Clinician profile with contact details (phone/clinic) shown to assigned patients
-- Responsive layout — full-width grids on desktop/web, split-pane once something's selected
-
-
 ### Getting clinician access
-
 There's no in-app way to become a clinician — accounts are provisioned by role manually, on purpose (a patient should never be able to self-promote). After registering an account, open the **Authentication → Firestore** console for your project, find that user's document under `users/{uid}`, and add a field: `role: "clinician"` (string). Signing back in routes to the clinician dashboard instead of the patient app.
