@@ -1,4 +1,4 @@
-<h1><img src="assets/images/Logo_without_backgroud.png" alt="SITE logo" width="50"> SITE — AI-Assisted Remote Catheter Monitoring</h1>
+<h1><img src="assets/images/Logo.png" alt="SITE logo" width="50"> SITE — AI-Assisted Remote Catheter Monitoring</h1>
 
 **System for Intelligent Telemonitoring and Early-Detection**
 The project of SITE was part of a course at my university called "Product Builder". The main objective of the course was to develop a digital health product, moving from problem validation to a functional prototype fitting the identified need and a viable business case. Throughout the course, we followed a structured version of the path taken by real founding teams, making decisions under regulatory constraints and limited evidence.
