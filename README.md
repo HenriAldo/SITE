@@ -4,7 +4,7 @@
 
 \
 **System for Intelligent Telemonitoring and Early-Detection**
-The project of SITE was part of a course at my university called "Product Builder". The main objective ofthe course was to develop a digital health product, moving from problem validation to a functional prototype fitting the identified need and a viable business case. Throughout the course, we followed a structured version of the path taken by real founding teams, making decisions under regulatory constraints and limited evidence. The goal was not simply to build a prototype, but to understand what it takes to create solutions that can be meaningfully used, approved, and adopted in real-world healthcare settings. It is important to note that this is not working medical poduct.
+The project of SITE was part of a course at my university called "Product Builder". The main objective of the course was to develop a digital health product, moving from problem validation to a functional prototype fitting the identified need and a viable business case. Throughout the course, we followed a structured version of the path taken by real founding teams, making decisions under regulatory constraints and limited evidence.
 
 ---
 ## Getting Started
@@ -12,7 +12,7 @@ The project of SITE was part of a course at my university called "Product Builde
 
 - Flutter 3.44+ / Dart 3.3+
 - A [Firebase](https://console.firebase.google.com) project (Firestore, Auth, and Storage enabled)
-- A [Gemini API key](https://aistudio.google.com/apikey)
+- A [Gemini API key](https://aistudio.google.com/apikey) (with minor adjustment one can switch to the provider of you choice)
 
 ### Setup
 
@@ -70,9 +70,9 @@ Clinical profile          Symptom integration          High     → Urgent alert
 
 <table border="0" cellspacing="0" cellpadding="0" style="border:none;border-collapse:collapse;">
   <tr>
-    <td align="center" style="border:none;"><b>Patient check-in flow</b><br><img src="assets/videos/Präsentation/Medien1.gif" width="260"></td>
-    <td align="center" style="border:none;"><b>Assessment and result</b><br><img src="assets/videos/Präsentation/Medien2.gif" width="260"></td>
-    <td align="center" style="border:none;"><b>Clinician dashboard review</b><br><img src="assets/videos/Präsentation/Medien3.gif" width="260"></td>
+    <td align="center" style="border:none;"><b>Patient check-in flow</b><br><img src="assets/GIF/Medien1.gif" width="260"></td>
+    <td align="center" style="border:none;"><b>Assessment and result</b><br><img src="assets/GIF/Medien2.gif" width="260"></td>
+    <td align="center" style="border:none;"><b>Clinician dashboard review</b><br><img src="assets/GIF/Medien3.gif" width="260"></td>
   </tr>
 </table>
 
